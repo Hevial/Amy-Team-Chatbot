@@ -1,0 +1,29 @@
+# Git files
+.git/
+.gitignore
+
+# Python compilation artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE configurations
+.vscode/
+.idea/
+
+# Environment variables
+.env
+.env.local
+
+# We exclude the local persistent database to avoid copying heavy files.
+# The container will create its own or mount a volume.
+chroma_db/
