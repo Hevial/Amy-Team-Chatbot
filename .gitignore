@@ -1,0 +1,60 @@
+# =============================================================================
+# Amy Team Chatbot - .gitignore
+# RAG-powered Assistant Coach for Amnesia Esports
+# =============================================================================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+
+# ----- Virtual Environments -----
+.venv/
+venv/
+ENV/
+
+# ----- Environment Variables -----
+.env
+.env.local
+.env.production
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ----- ChromaDB Persistent Storage (generated at runtime) -----
+chroma_db/
+
+# ----- Source Documents (user-provided, not tracked) -----
+# Sample documents ARE tracked for demo purposes.
+data/*
+!data/samples/
+
+# ----- Docker -----
+docker-compose.override.yml
+
+# ----- OS -----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----- Testing -----
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ----- Misc -----
+*.log
+*.bak
