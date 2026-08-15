@@ -20,41 +20,48 @@ eggs/
 venv/
 ENV/
 
-# ----- Environment Variables -----
+# ----- Environment Variables & Secrets -----
 .env
 .env.local
 .env.production
+credentials.json
+token.json
+service_account.json
+*.key
 
-# ----- IDE -----
+# ----- AI Assistant & IDE Internal Artifacts -----
+.agents/
+.tmp/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+test_engine.py
 
-# ----- ChromaDB Persistent Storage (generated at runtime) -----
+# ----- ChromaDB Persistent Storage (runtime generated) -----
 chroma_db/
+!chroma_db/.gitkeep
 
 # ----- Source Documents (user-provided, not tracked) -----
-# Sample documents ARE tracked for demo purposes.
 data/*
 !data/samples/
 
 # ----- Docker -----
 docker-compose.override.yml
 
-# ----- OS -----
+# ----- OS Specific -----
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# ----- Testing -----
+# ----- Testing & Code Quality -----
 .coverage
 htmlcov/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-# ----- Misc -----
+# ----- Logs & Diagnostics -----
 *.log
 *.bak
