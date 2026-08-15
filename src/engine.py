@@ -103,8 +103,12 @@ class HybridRAGEngine:
             - A list of web search chunks used (if any).
         """
         # 1. Retrieve internal documents
-        self.retriever.similarity_top_k = top_k or settings.similarity_top_k
-        nodes = self.retriever.retrieve(question)
+        if top_k is not None and top_k != settings.similarity_top_k:
+            retriever = self.index.as_retriever(similarity_top_k=top_k)
+        else:
+            retriever = self.retriever
+
+        nodes = retriever.retrieve(question)
 
         context_str = ""
         for i, n in enumerate(nodes):
@@ -161,7 +165,7 @@ class HybridRAGEngine:
                 }
             )
 
-        return response.text, internal_sources, web_sources
+        return response.text or "", internal_sources, web_sources
 
 
 def get_indexed_document_count() -> int:
