@@ -11,4 +11,6 @@ exclude = [
     ".venv",
     ".git",
     "chroma_db",
+    "**/__pyrefly_virtual__/**",
+    "**/.gemini/**"
 ]

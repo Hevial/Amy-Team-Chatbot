@@ -4,5 +4,9 @@
   "extraPaths": [
     ".",
     "src"
+  ],
+  "ignore": [
+    "**/__pyrefly_virtual__/**",
+    "**/.gemini/**"
   ]
 }
