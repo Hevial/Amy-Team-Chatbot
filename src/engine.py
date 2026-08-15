@@ -1,27 +1,19 @@
 """
-RAG Query Engine for Amy Team Chatbot.
+Hybrid RAG Query Engine for Amy Team Chatbot.
 
-This module initializes the LlamaIndex query engine by loading an existing
-ChromaDB vector store and configuring the Google Gemini LLM with a custom
-system prompt tailored for esports coaching and rulebook assistance.
-
-The engine is designed to be initialized once at application startup and
-shared across all incoming API requests.
-
-Usage:
-    from src.engine import create_query_engine
-    engine = create_query_engine()
-    response = engine.query("What is the disconnection rule?")
+This module provides the `HybridRAGEngine` class which combines local document
+retrieval (ChromaDB + LlamaIndex) with live web search grounding (Google GenAI).
 """
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import chromadb
-from llama_index.core import Settings, VectorStoreIndex
-from llama_index.core.node_parser import SentenceSplitter
+from google import genai
+from google.genai import types
+from llama_index.core import VectorStoreIndex
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
-from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from src.config import settings
@@ -38,107 +30,133 @@ Your role is to provide accurate, concise, and actionable answers to questions
 about tournament rules, game mechanics, patch notes, and team strategy.
 
 ## Instructions:
-1. **Always cite your sources.** When referencing a document, mention the
-   file name and the relevant section (e.g., "According to the Tournament
-   Rulebook, Section 3.1...").
-2. **Stay within the provided context.** Only answer based on the retrieved
-   documents. If the information is not available, say: "I don't have enough
-   information in the current documents to answer this question."
-3. **Be precise and direct.** Esports professionals need quick, clear answers
-   — especially during live tournament situations.
-4. **Use structured formatting** when listing rules, stats, or comparisons
-   (bullet points, tables, numbered lists).
+1. **Domain Boundaries (CRITICAL):** You are an Esports Coach. If the user asks 
+   you to write code, you may ONLY do so if it is strictly related to gaming,
+   Esports, or Amnesia's tools (e.g., game config files, Riot API scripts). 
+   Politely decline all generic coding requests (e.g., building an e-commerce site)
+   or unrelated topics.
+2. **Always cite your sources.** When referencing a document, mention the
+   file name and the relevant section.
+3. **Stay within the provided context or Search.** Use the provided internal
+   documents. If the information is not available and you have access to Google Search,
+   use it to find the answer on the live web.
+4. **Be precise and direct.** Esports professionals need quick, clear answers.
 5. **Language:** Always respond in the same language as the user's question.
 """
 
+class HybridRAGEngine:
+    """Combines ChromaDB vector retrieval with Google Gemini Native Search Grounding."""
+    
+    def __init__(self):
+        """Initializes the retriever and the Gemini AI client."""
+        chroma_db_path = Path(settings.chroma_db_dir)
+        if not chroma_db_path.exists():
+            raise FileNotFoundError(
+                f"ChromaDB directory not found at '{chroma_db_path}'. "
+                "Run 'python -m scripts.ingest' first to index your documents."
+            )
 
-def create_query_engine(similarity_top_k: int | None = None):
-    """Create and configure the RAG query engine.
+        if not settings.google_api_key:
+            raise ValueError("GOOGLE_API_KEY is not set in .env. Please get an API key from Google AI Studio.")
 
-    Loads the existing ChromaDB collection (populated by the ingestion script),
-    configures the Gemini LLM and embedding model, and returns a ready-to-use
-    query engine instance.
+        logger.info("Initializing ChromaDB connection...")
+        self.chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
+        self.collection = self.chroma_client.get_or_create_collection(settings.collection_name)
+        
+        doc_count = self.collection.count()
+        if doc_count == 0:
+            logger.warning("ChromaDB collection is empty. Please run the ingest script.")
+            
+        logger.info("Configuring embedding model: Google GenAI (%s)", settings.embedding_model)
+        self.embed_model = GoogleGenAIEmbedding(
+            model_name=settings.embedding_model,
+            api_key=settings.google_api_key
+        )
+        
+        self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
+        self.index = VectorStoreIndex.from_vector_store(
+            vector_store=self.vector_store,
+            embed_model=self.embed_model,
+        )
+        self.retriever = self.index.as_retriever(similarity_top_k=settings.similarity_top_k)
+        
+        logger.info("Configuring Google GenAI Client...")
+        self.ai_client = genai.Client(api_key=settings.google_api_key)
 
-    Args:
-        similarity_top_k: Number of top similar chunks to retrieve per query.
-                          Defaults to the value in application settings.
+    def query(self, question: str, enable_google_search: bool = True, top_k: int | None = None) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        """
+        Executes a hybrid query combining local context and optional Google Search.
+        
+        Args:
+            question: The user's prompt.
+            enable_google_search: Whether to enable Google Search Grounding for this query.
+            top_k: Optional override for the number of internal chunks to retrieve.
+            
+        Returns:
+            A tuple containing:
+            - The text response from the LLM.
+            - A list of internal document chunks used.
+            - A list of web search chunks used (if any).
+        """
+        # 1. Retrieve internal documents
+        self.retriever.similarity_top_k = top_k or settings.similarity_top_k
+        nodes = self.retriever.retrieve(question)
+        
+        context_str = ""
+        for i, n in enumerate(nodes):
+            file_name = n.metadata.get('file_name', 'Unknown')
+            context_str += f"--- Document {i+1} ({file_name}) ---\n{n.text}\n\n"
+            
+        if context_str:
+            prompt = f"User Question: {question}\n\nInternal Knowledge Base:\n{context_str}"
+        else:
+            prompt = f"User Question: {question}\n\nInternal Knowledge Base: (None available)"
 
-    Returns:
-        A LlamaIndex query engine configured with Gemini LLM, ChromaDB
-        retrieval, and the esports coaching system prompt.
+        # 2. Configure Google GenAI call
+        tools = []
+        if enable_google_search and settings.enable_google_search:
+            tools.append(types.Tool(google_search=types.GoogleSearch()))
 
-    Raises:
-        FileNotFoundError: If the ChromaDB directory does not exist.
-        ValueError: If the ChromaDB collection is empty (no documents indexed).
-    """
-    top_k = similarity_top_k or settings.similarity_top_k
-
-    # ---- Validate that the vector store exists ----
-    chroma_db_path = Path(settings.chroma_db_dir)
-    if not chroma_db_path.exists():
-        raise FileNotFoundError(
-            f"ChromaDB directory not found at '{chroma_db_path}'. "
-            "Run 'python -m scripts.ingest' first to index your documents."
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            temperature=0.2,
+            tools=tools if tools else None,
         )
 
-    # ---- Configure LlamaIndex global settings ----
-    logger.info("Configuring LLM: %s", settings.llm_model)
-    Settings.llm = GoogleGenAI(
-        model=settings.llm_model,
-        api_key=settings.google_api_key,
-    )
-
-    logger.info("Configuring embedding model: %s", settings.embedding_model)
-    Settings.embed_model = GoogleGenAIEmbedding(
-        model_name=settings.embedding_model,
-        api_key=settings.google_api_key,
-    )
-
-    Settings.node_parser = SentenceSplitter(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
-    )
-
-    # ---- Load existing ChromaDB collection ----
-    logger.info(
-        "Loading ChromaDB collection '%s' from '%s'...",
-        settings.collection_name,
-        chroma_db_path,
-    )
-    chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
-    chroma_collection = chroma_client.get_or_create_collection(settings.collection_name)
-
-    doc_count = chroma_collection.count()
-    if doc_count == 0:
-        raise ValueError(
-            f"ChromaDB collection '{settings.collection_name}' is empty. "
-            "Run 'python -m scripts.ingest' first to index your documents."
+        logger.info("Generating content with model: %s (Google Search: %s)", settings.llm_model, bool(tools))
+        
+        # 3. Call the model
+        response = self.ai_client.models.generate_content(
+            model=settings.llm_model,
+            contents=prompt,
+            config=config
         )
 
-    logger.info("Loaded %d indexed chunks from ChromaDB.", doc_count)
+        # 4. Extract citations and web sources if Google Search was used
+        web_sources = []
+        if response.candidates and response.candidates[0].grounding_metadata:
+            metadata = response.candidates[0].grounding_metadata
+            if metadata.grounding_chunks:
+                for chunk in metadata.grounding_chunks:
+                    if chunk.web:
+                        web_sources.append({
+                            "title": chunk.web.title,
+                            "url": chunk.web.uri,
+                        })
 
-    # ---- Build the query engine ----
-    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-    index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
+        internal_sources = []
+        for n in nodes:
+            internal_sources.append({
+                "text": n.text,
+                "file_name": n.metadata.get("file_name", "Unknown"),
+                "score": n.score,
+                "metadata": n.metadata
+            })
 
-    query_engine = index.as_query_engine(
-        similarity_top_k=top_k,
-        system_prompt=SYSTEM_PROMPT,
-    )
-
-    logger.info("Query engine ready (top_k=%d).", top_k)
-    return query_engine
-
+        return response.text, internal_sources, web_sources
 
 def get_indexed_document_count() -> int:
-    """Return the number of indexed chunks in the ChromaDB collection.
-
-    This is used by the health check endpoint to report index status
-    without initializing the full query engine.
-
-    Returns:
-        The number of chunks in the collection, or 0 if unavailable.
-    """
+    """Return the number of indexed chunks in the ChromaDB collection."""
     try:
         chroma_db_path = Path(settings.chroma_db_dir)
         if not chroma_db_path.exists():

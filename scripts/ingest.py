@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 import chromadb
+from chromadb.api import ClientAPI
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
@@ -70,7 +71,7 @@ def validate_environment() -> None:
     logger.info("Found %d document(s) in '%s'.", len(doc_files), settings.data_dir)
 
 
-def clear_collection(chroma_client: chromadb.PersistentClient) -> None:
+def clear_collection(chroma_client: ClientAPI) -> None:
     """Delete the existing ChromaDB collection for a fresh re-index."""
     try:
         chroma_client.delete_collection(settings.collection_name)
@@ -95,7 +96,7 @@ def run_ingestion(clear: bool = False) -> None:
     start_time = time.perf_counter()
 
     # ---- Step 1: Configure LlamaIndex global settings ----
-    logger.info("Configuring embedding model: %s", settings.embedding_model)
+    logger.info("Configuring embedding model: Google GenAI (%s)", settings.embedding_model)
     Settings.embed_model = GoogleGenAIEmbedding(
         model_name=settings.embedding_model,
         api_key=settings.google_api_key,

@@ -4,6 +4,7 @@ FastAPI entry point for the Amy Team Chatbot API.
 Provides endpoints for health checking and RAG querying. The LlamaIndex
 query engine is initialized once during the application lifespan to
 minimize latency on incoming requests.
+
 """
 
 import logging
@@ -16,7 +17,7 @@ from llama_index.core.base.response.schema import Response
 
 from src import __version__
 from src.config import settings
-from src.engine import create_query_engine, get_indexed_document_count
+from src.engine import HybridRAGEngine, get_indexed_document_count
 from src.models import HealthResponse, QueryRequest, QueryResponse, SourceNode
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ async def lifespan(app: FastAPI):
     global query_engine
     logger.info("Initializing application lifespan...")
     try:
-        query_engine = create_query_engine()
-        logger.info("RAG Query Engine initialized successfully.")
+        query_engine = HybridRAGEngine()
+        logger.info("Hybrid RAG Engine initialized successfully.")
     except Exception as e:  # noqa: BLE001
         logger.error("Failed to initialize query engine: %s", e)
         # We don't raise here to allow the API to start (e.g., for health checks)
@@ -87,6 +88,9 @@ async def health_check():
         version=__version__,
         documents_indexed=doc_count,
         environment=settings.log_level,
+        llm_model=settings.llm_model,
+        embedding_model=settings.embedding_model,
+        google_search_enabled=settings.enable_google_search,
     )
 
 
@@ -119,30 +123,49 @@ async def query_assistant(request: QueryRequest):
         if request.top_k and request.top_k != settings.similarity_top_k:
             query_engine.update_prompts({"similarity_top_k": request.top_k})
             
-        # Execute the RAG query
-        logger.info("Executing query: '%s'", request.question)
-        response: Response = query_engine.query(request.question)
+        # Execute the Hybrid RAG query
+        logger.info("Executing hybrid query: '%s'", request.question)
+        answer, internal_nodes, web_nodes = query_engine.query(
+            question=request.question,
+            enable_google_search=request.enable_google_search,
+            top_k=request.top_k,
+        )
         
         # Parse the source nodes used for the answer
         sources = []
-        if response.source_nodes:
-            for node_with_score in response.source_nodes:
-                node = node_with_score.node
-                sources.append(
-                    SourceNode(
-                        text=node.get_content()[:500] + "..." if len(node.get_content()) > 500 else node.get_content(),
-                        file_name=node.metadata.get("file_name", "Unknown"),
-                        score=node_with_score.score,
-                        metadata=node.metadata,
-                    )
+        
+        # Internal Document Citations
+        for node in internal_nodes:
+            text_content = node["text"]
+            text_snippet = text_content[:500] + "..." if len(text_content) > 500 else text_content
+            sources.append(
+                SourceNode(
+                    source_type="document",
+                    text=text_snippet,
+                    file_name=node.get("file_name", "Unknown"),
+                    score=node.get("score"),
+                    metadata=node.get("metadata", {}),
                 )
+            )
+            
+        # Web Search Citations
+        for node in web_nodes:
+            sources.append(
+                SourceNode(
+                    source_type="web",
+                    text=node["title"],  # Web chunks typically only contain URI/Title in Grounding metadata
+                    url=node["url"],
+                    title=node["title"],
+                )
+            )
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Query completed in %.2f ms.", elapsed_ms)
         
         return QueryResponse(
-            answer=str(response),
+            answer=answer,
             sources=sources,
+            llm_model=settings.llm_model,
             query_time_ms=elapsed_ms,
         )
 
