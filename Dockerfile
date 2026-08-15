@@ -30,6 +30,13 @@ COPY src/ ./src/
 COPY frontend/ ./frontend/
 COPY data/ ./data/
 
+# Create a non-root user for security
+RUN useradd -m -r appuser && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app
+
+USER appuser
+
 # Set environment variables for production
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -38,5 +45,5 @@ ENV PORT=8080
 # Expose the port for Cloud Run / Docker Compose
 EXPOSE 8080
 
-# Start the FastAPI application via Uvicorn
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Start the FastAPI application via Uvicorn, using the PORT environment variable
+CMD sh -c "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"

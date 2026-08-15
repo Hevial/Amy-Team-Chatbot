@@ -24,10 +24,11 @@ Built with **FastAPI**, **LlamaIndex**, **Streamlit**, and **Google Gemini 2.0 F
 
 - **Backend:** FastAPI (Python)
 - **Frontend:** Streamlit
-- **LLM Engine:** Google Gemini 2.0 Flash (via `llama-index-llms-google-genai`)
+- **LLM Engine:** Google Gemini 2.0 Flash (via `google-genai` SDK)
 - **Embeddings:** Google text-embedding-004
+- **Web Grounding:** Native Google Search Grounding (`types.GoogleSearch`)
 - **Vector Database:** ChromaDB (Persistent local storage)
-- **Containerization:** Docker & Docker Compose
+- **Containerization:** Docker & Google Cloud Run
 
 ---
 
@@ -102,6 +103,38 @@ docker-compose up --build
 
 - **Frontend:** [http://localhost:8501](http://localhost:8501)
 - **API Backend:** [http://localhost:8080/docs](http://localhost:8080/docs)
+
+---
+
+## ☁️ Google Cloud Run Deployment
+
+This project is optimized for deployment on **Google Cloud Run** as a scalable, serverless container.
+
+### Prerequisites
+1. Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+2. Authenticate: `gcloud auth login`
+3. Set your project: `gcloud config set project YOUR_PROJECT_ID`
+4. Ensure Secret Manager and Cloud Build APIs are enabled.
+
+### 1-Click Deployment
+You can deploy the full architecture to Cloud Run using the included deployment scripts:
+
+**Windows (PowerShell):**
+```powershell
+.\deploy_gcp.ps1
+```
+
+**Linux / macOS:**
+```bash
+chmod +x deploy_gcp.sh
+./deploy_gcp.sh
+```
+
+These scripts will:
+1. Build the multi-stage Docker image via Google Cloud Build.
+2. Push it to Artifact Registry.
+3. Deploy a stateless Cloud Run service using the `$PORT` environment variable.
+4. Pass the required LLM environment settings.
 
 ---
 

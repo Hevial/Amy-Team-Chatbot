@@ -13,7 +13,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from llama_index.core.base.response.schema import Response
 
 from src import __version__
 from src.config import settings
@@ -29,7 +28,7 @@ query_engine = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for FastAPI.
-    
+
     Initializes the RAG query engine at startup and cleans up at shutdown.
     This ensures the vector store is loaded into memory only once.
     """
@@ -42,9 +41,9 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to initialize query engine: %s", e)
         # We don't raise here to allow the API to start (e.g., for health checks)
         # but the /query endpoint will fail gracefully.
-    
+
     yield
-    
+
     logger.info("Application shutting down...")
     query_engine = None
 
@@ -71,6 +70,7 @@ app.add_middleware(
 async def root():
     """Redirect root to Swagger UI documentation."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/docs")
 
 
@@ -103,11 +103,11 @@ async def health_check():
 async def query_assistant(request: QueryRequest):
     """
     Ask a question to the Amy Assistant Coach.
-    
-    The engine retrieves relevant context from the team's documents and 
+
+    The engine retrieves relevant context from the team's documents and
     generates a precise, cited answer using Google Gemini.
     """
-    
+
     if query_engine is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -115,14 +115,14 @@ async def query_assistant(request: QueryRequest):
         )
 
     start_time = time.perf_counter()
-    
+
     try:
         # If the user specified a custom top_k for this request, we update the engine temporarily.
         # Note: In a highly concurrent prod app, we'd use a custom retriever per request instead of mutating the global engine.
         # For this POC, mutating the engine is sufficient.
         if request.top_k and request.top_k != settings.similarity_top_k:
             query_engine.update_prompts({"similarity_top_k": request.top_k})
-            
+
         # Execute the Hybrid RAG query
         logger.info("Executing hybrid query: '%s'", request.question)
         answer, internal_nodes, web_nodes = query_engine.query(
@@ -130,10 +130,10 @@ async def query_assistant(request: QueryRequest):
             enable_google_search=request.enable_google_search,
             top_k=request.top_k,
         )
-        
+
         # Parse the source nodes used for the answer
         sources = []
-        
+
         # Internal Document Citations
         for node in internal_nodes:
             text_content = node["text"]
@@ -147,13 +147,15 @@ async def query_assistant(request: QueryRequest):
                     metadata=node.get("metadata", {}),
                 )
             )
-            
+
         # Web Search Citations
         for node in web_nodes:
             sources.append(
                 SourceNode(
                     source_type="web",
-                    text=node["title"],  # Web chunks typically only contain URI/Title in Grounding metadata
+                    text=node[
+                        "title"
+                    ],  # Web chunks typically only contain URI/Title in Grounding metadata
                     url=node["url"],
                     title=node["title"],
                 )
@@ -161,7 +163,7 @@ async def query_assistant(request: QueryRequest):
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Query completed in %.2f ms.", elapsed_ms)
-        
+
         return QueryResponse(
             answer=answer,
             sources=sources,
