@@ -51,7 +51,9 @@ class QueryResponse(BaseModel):
         description="List of document chunks and web results used as context.",
     )
     llm_model: str | None = Field(default=None, description="The LLM model used for generation.")
-    query_time_ms: float = Field(..., description="Time taken to process the query in milliseconds.")
+    query_time_ms: float = Field(
+        ..., description="Time taken to process the query in milliseconds."
+    )
 
 
 class HealthResponse(BaseModel):
@@ -59,8 +61,12 @@ class HealthResponse(BaseModel):
 
     status: str = Field(..., description="Current status of the API.")
     version: str = Field(..., description="API version.")
-    documents_indexed: int = Field(..., description="Number of document chunks currently in the vector store.")
+    documents_indexed: int = Field(
+        ..., description="Number of document chunks currently in the vector store."
+    )
     environment: str = Field(..., description="Current deployment environment.")
     llm_model: str = Field(..., description="Configured LLM model.")
     embedding_model: str = Field(..., description="Configured embedding model.")
-    google_search_enabled: bool = Field(..., description="Whether Google Search Grounding is enabled globally.")
+    google_search_enabled: bool = Field(
+        ..., description="Whether Google Search Grounding is enabled globally."
+    )

@@ -44,9 +44,10 @@ about tournament rules, game mechanics, patch notes, and team strategy.
 5. **Language:** Always respond in the same language as the user's question.
 """
 
+
 class HybridRAGEngine:
     """Combines ChromaDB vector retrieval with Google Gemini Native Search Grounding."""
-    
+
     def __init__(self):
         """Initializes the retriever and the Gemini AI client."""
         chroma_db_path = Path(settings.chroma_db_dir)
@@ -57,41 +58,44 @@ class HybridRAGEngine:
             )
 
         if not settings.google_api_key:
-            raise ValueError("GOOGLE_API_KEY is not set in .env. Please get an API key from Google AI Studio.")
+            raise ValueError(
+                "GOOGLE_API_KEY is not set in .env. Please get an API key from Google AI Studio."
+            )
 
         logger.info("Initializing ChromaDB connection...")
         self.chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
         self.collection = self.chroma_client.get_or_create_collection(settings.collection_name)
-        
+
         doc_count = self.collection.count()
         if doc_count == 0:
             logger.warning("ChromaDB collection is empty. Please run the ingest script.")
-            
+
         logger.info("Configuring embedding model: Google GenAI (%s)", settings.embedding_model)
         self.embed_model = GoogleGenAIEmbedding(
-            model_name=settings.embedding_model,
-            api_key=settings.google_api_key
+            model_name=settings.embedding_model, api_key=settings.google_api_key
         )
-        
+
         self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
         self.index = VectorStoreIndex.from_vector_store(
             vector_store=self.vector_store,
             embed_model=self.embed_model,
         )
         self.retriever = self.index.as_retriever(similarity_top_k=settings.similarity_top_k)
-        
+
         logger.info("Configuring Google GenAI Client...")
         self.ai_client = genai.Client(api_key=settings.google_api_key)
 
-    def query(self, question: str, enable_google_search: bool = True, top_k: int | None = None) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    def query(
+        self, question: str, enable_google_search: bool = True, top_k: int | None = None
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Executes a hybrid query combining local context and optional Google Search.
-        
+
         Args:
             question: The user's prompt.
             enable_google_search: Whether to enable Google Search Grounding for this query.
             top_k: Optional override for the number of internal chunks to retrieve.
-            
+
         Returns:
             A tuple containing:
             - The text response from the LLM.
@@ -101,12 +105,12 @@ class HybridRAGEngine:
         # 1. Retrieve internal documents
         self.retriever.similarity_top_k = top_k or settings.similarity_top_k
         nodes = self.retriever.retrieve(question)
-        
+
         context_str = ""
         for i, n in enumerate(nodes):
-            file_name = n.metadata.get('file_name', 'Unknown')
-            context_str += f"--- Document {i+1} ({file_name}) ---\n{n.text}\n\n"
-            
+            file_name = n.metadata.get("file_name", "Unknown")
+            context_str += f"--- Document {i + 1} ({file_name}) ---\n{n.text}\n\n"
+
         if context_str:
             prompt = f"User Question: {question}\n\nInternal Knowledge Base:\n{context_str}"
         else:
@@ -123,13 +127,13 @@ class HybridRAGEngine:
             tools=tools if tools else None,
         )
 
-        logger.info("Generating content with model: %s (Google Search: %s)", settings.llm_model, bool(tools))
-        
+        logger.info(
+            "Generating content with model: %s (Google Search: %s)", settings.llm_model, bool(tools)
+        )
+
         # 3. Call the model
         response = self.ai_client.models.generate_content(
-            model=settings.llm_model,
-            contents=prompt,
-            config=config
+            model=settings.llm_model, contents=prompt, config=config
         )
 
         # 4. Extract citations and web sources if Google Search was used
@@ -139,21 +143,26 @@ class HybridRAGEngine:
             if metadata.grounding_chunks:
                 for chunk in metadata.grounding_chunks:
                     if chunk.web:
-                        web_sources.append({
-                            "title": chunk.web.title,
-                            "url": chunk.web.uri,
-                        })
+                        web_sources.append(
+                            {
+                                "title": chunk.web.title,
+                                "url": chunk.web.uri,
+                            }
+                        )
 
         internal_sources = []
         for n in nodes:
-            internal_sources.append({
-                "text": n.text,
-                "file_name": n.metadata.get("file_name", "Unknown"),
-                "score": n.score,
-                "metadata": n.metadata
-            })
+            internal_sources.append(
+                {
+                    "text": n.text,
+                    "file_name": n.metadata.get("file_name", "Unknown"),
+                    "score": n.score,
+                    "metadata": n.metadata,
+                }
+            )
 
         return response.text, internal_sources, web_sources
+
 
 def get_indexed_document_count() -> int:
     """Return the number of indexed chunks in the ChromaDB collection."""

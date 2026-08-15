@@ -33,9 +33,21 @@ ICON_FILE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke=
 
 SUGGESTION_CHIPS = [
     {"icon": ICON_BOLT, "label": "Disconnection rules", "query": "What is the disconnection rule?"},
-    {"icon": ICON_CLIPBOARD, "label": "Latest patch notes", "query": "Summarize the latest patch notes"},
-    {"icon": ICON_TROPHY, "label": "Tournament format", "query": "What are the tournament format rules?"},
-    {"icon": ICON_TARGET, "label": "Team strategy tips", "query": "What strategic advice can you give based on the current meta?"},
+    {
+        "icon": ICON_CLIPBOARD,
+        "label": "Latest patch notes",
+        "query": "Summarize the latest patch notes",
+    },
+    {
+        "icon": ICON_TROPHY,
+        "label": "Tournament format",
+        "query": "What are the tournament format rules?",
+    },
+    {
+        "icon": ICON_TARGET,
+        "label": "Team strategy tips",
+        "query": "What strategic advice can you give based on the current meta?",
+    },
 ]
 
 # SVG avatars — inline so no external dependencies
@@ -62,7 +74,8 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Design System — CSS
 # ---------------------------------------------------------------------------
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* ── Fonts ─────────────────────────────────────────────────────────── */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -437,7 +450,9 @@ st.markdown("""
         .chat-container { padding: 0 0.5rem 6rem 0.5rem; }
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +473,7 @@ def render_message(role: str, content: str) -> str:
         f'<div class="msg-row {row_cls}">'
         f'  <div class="msg-avatar">{avatar}</div>'
         f'  <div class="msg-bubble {bubble_cls}">{content}</div>'
-        f'</div>'
+        f"</div>"
     )
 
 
@@ -471,8 +486,8 @@ def render_typing_indicator() -> str:
         f'    <div class="typing-dot"></div>'
         f'    <div class="typing-dot"></div>'
         f'    <div class="typing-dot"></div>'
-        f'  </div>'
-        f'</div>'
+        f"  </div>"
+        f"</div>"
     )
 
 
@@ -582,11 +597,7 @@ if prompt:
 
     # 3. Fetch response from FastAPI backend
     try:
-        payload = {
-            "question": prompt,
-            "top_k": top_k,
-            "enable_google_search": enable_google_search
-        }
+        payload = {"question": prompt, "top_k": top_k, "enable_google_search": enable_google_search}
         response = requests.post(QUERY_ENDPOINT, json=payload, timeout=60)
         response.raise_for_status()
 
@@ -599,7 +610,7 @@ if prompt:
             full_response += '<div style="margin-top: 10px;">'
             doc_files = set()
             web_links = set()
-            
+
             for s in sources:
                 stype = s.get("source_type")
                 if stype == "document":
@@ -612,13 +623,13 @@ if prompt:
                     url = s.get("url", "#")
                     if url not in web_links:
                         web_links.add(url)
-                        full_response += f'<a href="{url}" target="_blank" class="source-chip">🌐 {title}</a>'
-                        
+                        full_response += (
+                            f'<a href="{url}" target="_blank" class="source-chip">🌐 {title}</a>'
+                        )
+
             full_response += "</div>"
 
-        st.session_state.messages.append(
-            {"role": "assistant", "content": full_response}
-        )
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
     except requests.exceptions.ConnectionError:
         error_content = (
@@ -626,15 +637,11 @@ if prompt:
             "The API server is not reachable. "
             "Make sure the FastAPI backend is running on port 8080."
         )
-        st.session_state.messages.append(
-            {"role": "assistant", "content": error_content}
-        )
+        st.session_state.messages.append({"role": "assistant", "content": error_content})
 
     except requests.exceptions.HTTPError as e:
         error_content = f"<strong>API Error</strong> — {e.response.text}"
-        st.session_state.messages.append(
-            {"role": "assistant", "content": error_content}
-        )
+        st.session_state.messages.append({"role": "assistant", "content": error_content})
 
     # 4. Refresh display with the assistant's answer (typing indicator removed)
     update_chat_display(show_typing=False)

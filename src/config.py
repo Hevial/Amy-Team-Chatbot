@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # API Keys are automatically loaded from the .env file
     google_api_key: str | None = Field(default=None, alias="GOOGLE_API_KEY")
     groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
-    
+
     # ---- Models & Capabilities ----
     llm_model: str = Field(default="gemini-2.0-flash", alias="LLM_MODEL")
     embedding_model: str = Field(default="text-embedding-004", alias="EMBEDDING_MODEL")
