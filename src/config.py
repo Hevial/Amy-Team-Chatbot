@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     Attributes:
         google_api_key (str | None): API key for Google AI Studio (Gemini).
-        groq_api_key (str | None): API key for Groq API (fallback).
+    # groq_api_key is removed
         llm_model (str): Primary LLM identifier, dynamically loaded from LLM_MODEL or defaulting to gemini-2.0-flash.
         embedding_model (str): Primary Embedding identifier, dynamically loaded from EMBEDDING_MODEL or defaulting to text-embedding-004.
         enable_google_search (bool): Toggle to enable or disable native Google Search grounding.
@@ -45,11 +45,11 @@ class Settings(BaseSettings):
     # ---- Integrations ----
     # API Keys are automatically loaded from the .env file
     google_api_key: str | None = Field(default=None, alias="GOOGLE_API_KEY")
-    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    # groq_api_key is removed
 
     # ---- Models & Capabilities ----
     llm_model: str = Field(default="gemini-2.0-flash", alias="LLM_MODEL")
-    embedding_model: str = Field(default="text-embedding-004", alias="EMBEDDING_MODEL")
+    embedding_model: str = Field(default="gemini-embedding-2", alias="EMBEDDING_MODEL")
     enable_google_search: bool = Field(default=True, alias="ENABLE_GOOGLE_SEARCH")
 
     # ---- Google Cloud Platform Settings ----
