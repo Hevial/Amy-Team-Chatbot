@@ -7,6 +7,8 @@
   ],
   "ignore": [
     "**/__pyrefly_virtual__/**",
+    "c:/__pyrefly_virtual__/**",
+    "C:/__pyrefly_virtual__/**",
     "**/.gemini/**"
   ]
 }
