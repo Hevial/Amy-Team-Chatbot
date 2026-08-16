@@ -51,7 +51,7 @@ Built with **FastAPI**, **LlamaIndex**, **React (Vite)**, and **Google Gemini**.
 
 ### Prerequisites
 
-- **Python 3.11+**
+- **Python 3.11** (Highly recommended. Newer experimental versions like 3.13 or 3.14 will crash with `protobuf` C-extension errors during local development).
 - **Node.js 18+** (for the frontend)
 - A Google AI Studio API Key — [get one here](https://aistudio.google.com/app/apikey)
 
