@@ -29,6 +29,7 @@ from llama_index.core import (
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.firestore import FirestoreVectorStore
 
 # Resolve the project root so imports work when running as a module.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -71,13 +72,36 @@ def validate_environment() -> None:
     logger.info("Found %d document(s) in '%s'.", len(doc_files), settings.data_dir)
 
 
-def clear_collection(chroma_client: ClientAPI) -> None:
-    """Delete the existing ChromaDB collection for a fresh re-index."""
+def clear_collection(chroma_client: ClientAPI | None = None) -> None:
+    """Delete the existing collection for a fresh re-index."""
     try:
-        chroma_client.delete_collection(settings.collection_name)
-        logger.info("Cleared existing collection '%s'.", settings.collection_name)
+        if settings.vector_store_type.lower() == "firestore":
+            import google.auth
+            from google.cloud import firestore
+            
+            project_id = settings.firestore_project_id
+            if not project_id:
+                credentials, project_id = google.auth.default()
+                
+            if project_id:
+                db = firestore.Client(project=project_id, database=settings.firestore_database_id)
+                docs = db.collection(settings.collection_name).limit(500).stream()
+                batch = db.batch()
+                deleted = 0
+                for doc in docs:
+                    batch.delete(doc.reference)
+                    deleted += 1
+                if deleted > 0:
+                    batch.commit()
+                logger.info("Cleared existing Firestore collection '%s' (up to 500 docs).", settings.collection_name)
+        else:
+            if chroma_client:
+                chroma_client.delete_collection(settings.collection_name)
+                logger.info("Cleared existing ChromaDB collection '%s'.", settings.collection_name)
     except ValueError:
         logger.info("No existing collection '%s' to clear.", settings.collection_name)
+    except Exception as e:
+        logger.warning("Could not clear collection: %s", e)
 
 
 def run_ingestion(clear: bool = False) -> None:
@@ -115,19 +139,43 @@ def run_ingestion(clear: bool = False) -> None:
     ).load_data()
     logger.info("Loaded %d document(s).", len(documents))
 
-    # ---- Step 3: Initialize ChromaDB ----
-    chroma_db_path = Path(settings.chroma_db_dir)
-    chroma_db_path.mkdir(parents=True, exist_ok=True)
-
-    logger.info("Initializing ChromaDB at '%s'...", chroma_db_path)
-    chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
-
-    # ---- Step 4: Optionally clear existing data ----
-    if clear:
-        clear_collection(chroma_client)
-
-    chroma_collection = chroma_client.get_or_create_collection(settings.collection_name)
-    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    # ---- Step 3 & 4: Initialize Vector Store and Optionally clear ----
+    if settings.vector_store_type.lower() == "firestore":
+        logger.info("Initializing Firestore Vector Store...")
+        if clear:
+            clear_collection()
+            
+        import google.auth
+        from google.cloud import firestore
+        
+        project_id = settings.firestore_project_id
+        if not project_id:
+            try:
+                credentials, project_id = google.auth.default()
+            except Exception as e:
+                logger.warning("Could not get default GCP project: %s", e)
+        
+        if not project_id:
+            raise ValueError("FIRESTORE_PROJECT_ID must be set when using firestore vector store.")
+            
+        db = firestore.Client(project=project_id, database=settings.firestore_database_id)
+        vector_store = FirestoreVectorStore(
+            collection_name=settings.collection_name,
+            db=db
+        )
+    else:
+        chroma_db_path = Path(settings.chroma_db_dir)
+        chroma_db_path.mkdir(parents=True, exist_ok=True)
+    
+        logger.info("Initializing ChromaDB at '%s'...", chroma_db_path)
+        chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
+    
+        if clear:
+            clear_collection(chroma_client)
+    
+        chroma_collection = chroma_client.get_or_create_collection(settings.collection_name)
+        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+        
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
     # ---- Step 5: Build the index (this generates embeddings) ----
@@ -146,11 +194,18 @@ def run_ingestion(clear: bool = False) -> None:
         node_count,
         elapsed,
     )
-    logger.info(
-        "ChromaDB collection '%s' persisted at '%s'.",
-        settings.collection_name,
-        chroma_db_path,
-    )
+    if settings.vector_store_type.lower() == "firestore":
+        logger.info(
+            "Firestore collection '%s' populated successfully.",
+            settings.collection_name,
+        )
+    else:
+        chroma_db_path = Path(settings.chroma_db_dir)
+        logger.info(
+            "ChromaDB collection '%s' persisted at '%s'.",
+            settings.collection_name,
+            chroma_db_path,
+        )
 
 
 def main() -> None:

@@ -49,8 +49,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      # Inject necessary environment variables for the RAG engine
-      - '--set-env-vars=ENABLE_GOOGLE_SEARCH=true'
+      # Inject necessary environment variables for the RAG engine and Vector Store
+      - '--set-env-vars=ENABLE_GOOGLE_SEARCH=true,VECTOR_STORE_TYPE=firestore,FIRESTORE_PROJECT_ID=$PROJECT_ID'
       # Securely map the Google API Key from Google Secret Manager
       - '--update-secrets=GOOGLE_API_KEY=google_api_key:latest'
 

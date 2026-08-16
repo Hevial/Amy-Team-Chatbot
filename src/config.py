@@ -26,8 +26,11 @@ class Settings(BaseSettings):
         google_cloud_project (str | None): Google Cloud Project ID for deployment.
         google_cloud_location (str): Google Cloud region (default: europe-west1).
         data_dir (str): Path to the directory containing source documents.
-        chroma_db_dir (str): Path for ChromaDB persistent storage on disk.
-        collection_name (str): Name of the ChromaDB collection to use.
+        vector_store_type (str): Either 'chroma' (local dev) or 'firestore' (production).
+        chroma_db_dir (str): Path for ChromaDB persistent storage on disk (if using chroma).
+        firestore_project_id (str): Google Cloud Project ID for Firestore (if using firestore). If None, uses ADC defaults.
+        firestore_database_id (str): Database ID for Firestore (default: (default)).
+        collection_name (str): Name of the Chroma collection or Firestore collection to use.
         host (str): Host address for the FastAPI server.
         port (int): Port number for the FastAPI server.
         log_level (str): Logging verbosity level.
@@ -58,7 +61,16 @@ class Settings(BaseSettings):
 
     # --- Data & Storage Paths ---
     data_dir: str = "./data/samples"
+    vector_store_type: str = Field(default="chroma", alias="VECTOR_STORE_TYPE")
+    
+    # ChromaDB (Local Dev)
     chroma_db_dir: str = "./chroma_db"
+    
+    # Firestore (Cloud Prod)
+    firestore_project_id: str | None = Field(default=None, alias="FIRESTORE_PROJECT_ID")
+    firestore_database_id: str = Field(default="(default)", alias="FIRESTORE_DATABASE_ID")
+    
+    # Shared
     collection_name: str = "amnesia_docs"
 
     # --- Server ---
