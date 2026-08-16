@@ -1,54 +1,72 @@
-# Amy Team Chatbot 🎮
+# Amy Team Chatbot
 
-![Banner](https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Esports_Logo.svg/1024px-Esports_Logo.svg.png)
+> Your tactical and regulatory companion.
 
-> **"Your tactical and regulatory companion."**
+Amy is an internal RAG-powered Assistant Coach for Amnesia Esports. It connects to the team's live documents (tournament rules, patch notes, tactical playbooks) and provides accurate, cited answers to help players and coaching staff prepare for competitive play.
 
-Amnesia Esports' internal RAG-powered Assistant Coach. Amy connects to the team's live documents (tournament rules, patch notes, tactical playbooks) and provides accurate, immediate answers with citations to help players and coaching staff prepare for competitive play.
+Built with **FastAPI**, **LlamaIndex**, **Streamlit**, and **Google Gemini**.
 
-Built with **FastAPI**, **LlamaIndex**, **Streamlit**, and **Google Gemini 2.0 Flash**.
-
----
-
-## 🚀 Features
-
-- **Retrieval-Augmented Generation (RAG):** Answers questions based strictly on the team's internal documents.
-- **Source Citations:** Every answer includes exact references to the source files (e.g., `valorant_patch_notes_9_04.md`).
-- **Esports Context:** The system prompt is fine-tuned to act as an Assistant Coach, giving direct and structured tactical advice.
-- **Cloud-Native Architecture:** Dockerized and ready to deploy on Google Cloud Run.
-- **Beautiful UI:** A dark-themed, esports-styled Streamlit chat interface.
+<!-- Replace the path below with an actual screenshot of the chat interface -->
+![Amy Chat Interface](docs/assets/app_screenshot.png)
 
 ---
 
-## 🛠️ Technology Stack
+## Table of Contents
 
-- **Backend:** FastAPI (Python)
-- **Frontend:** Streamlit
-- **LLM Engine:** Google Gemini 2.0 Flash (via `google-genai` SDK)
-- **Embeddings:** Google text-embedding-004
-- **Web Grounding:** Native Google Search Grounding (`types.GoogleSearch`)
-- **Vector Database:** ChromaDB (Persistent local storage)
-- **Containerization:** Docker & Google Cloud Run
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Local Development](#local-development)
+- [Running with Docker](#running-with-docker)
+- [Google Cloud Run Deployment](#google-cloud-run-deployment)
+- [Project Structure](#project-structure)
+- [Code Quality](#code-quality)
 
 ---
 
-## 💻 Local Development
+## Features
+
+- **Retrieval-Augmented Generation (RAG)** -- Answers questions based strictly on the team's internal documents stored in a persistent vector database.
+- **Source Citations** -- Every answer includes exact references to the source files (e.g., `valorant_patch_notes_9_04.md`), making it easy to verify information.
+- **Optional Google Search Grounding** -- When enabled by the user, Amy can supplement document-based answers with live web results for questions that go beyond the local knowledge base.
+- **Esports-Tuned System Prompt** -- The assistant is configured to behave as a professional esports coach: precise, direct, and scoped exclusively to the gaming domain.
+- **Cloud-Native Architecture** -- Dockerized with a multi-stage build, ready to deploy on Google Cloud Run as a stateless, auto-scaling service.
+- **Custom Chat Interface** -- A dark-themed Streamlit frontend with SVG-based avatars, suggestion chips, typing indicators, and a responsive layout.
+
+---
+
+## Technology Stack
+
+| Layer            | Technology                                                        |
+|------------------|-------------------------------------------------------------------|
+| Backend API      | FastAPI (Python 3.11+)                                            |
+| Frontend         | Streamlit                                                         |
+| LLM              | Google Gemini 3.5 Flash Lite (via `google-genai` SDK)             |
+| Embeddings       | Google `gemini-embedding-2`                                       |
+| Web Grounding    | Native Google Search Grounding (`types.GoogleSearch`)             |
+| Vector Database  | ChromaDB (persistent local storage)                               |
+| Orchestration    | LlamaIndex                                                        |
+| Containerization | Docker, Docker Compose, Google Cloud Run                          |
+
+---
+
+## Local Development
 
 ### Prerequisites
 
-- Python 3.11+
-- Google AI Studio API Key ([Get one here](https://aistudio.google.com/app/apikey))
+- Python 3.11 or higher
+- A Google AI Studio API Key -- [get one here](https://aistudio.google.com/app/apikey)
 
 ### 1. Setup Environment
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/amy-team-chatbot.git
+git clone https://github.com/Hevial/Amy-Team-Chatbot.git
 cd amy-team-chatbot
 
-# Create and activate virtual environment
+# Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+source .venv/bin/activate        # Linux / macOS
+.venv\Scripts\Activate.ps1       # Windows (PowerShell)
 
 # Install dependencies
 pip install -r requirements.txt
@@ -56,121 +74,143 @@ pip install -r requirements.txt
 
 ### 2. Configure Settings
 
-Copy the example environment file and add your Google API Key:
+Copy the example environment file and insert your API key:
 
 ```bash
 cp .env.example .env
 ```
-Edit `.env` and set `GOOGLE_API_KEY="your_api_key_here"`.
 
-### 3. Ingest Data
+Open `.env` and set `GOOGLE_API_KEY` to the value you obtained from Google AI Studio. All other defaults are production-ready out of the box.
 
-The `data/samples/` directory contains sample rulebooks and patch notes. To generate embeddings and store them in ChromaDB, run the ingestion script:
+### 3. Ingest Documents
+
+The `data/samples/` directory ships with sample rulebooks and patch notes. To generate embeddings and store them in ChromaDB, run:
 
 ```bash
 python -m scripts.ingest
 ```
 
-*(You can add more markdown, PDF, or text files to the `data/` folder and re-run the script with `--clear` to update the index).*
+To add new documents, place Markdown, PDF, or plain text files in `data/samples/` and re-run the command with `--clear` to rebuild the index from scratch.
 
 ### 4. Run the Application
 
-You can start the backend and frontend separately:
+Start the backend and frontend in two separate terminal windows:
 
-**Start FastAPI Backend:**
+**FastAPI Backend:**
+
 ```bash
 uvicorn src.main:app --reload --port 8080
 ```
-- API Docs (Swagger): http://localhost:8080/docs
-- Health Check: http://localhost:8080/health
 
-**Start Streamlit Frontend:**
+| Resource     | URL                            |
+|--------------|--------------------------------|
+| Swagger Docs | http://localhost:8080/docs      |
+| Health Check | http://localhost:8080/health    |
+
+**Streamlit Frontend:**
+
 ```bash
 streamlit run frontend/app.py --server.port 8501
 ```
-- Chat Interface: http://localhost:8501
+
+| Resource        | URL                         |
+|-----------------|-----------------------------|
+| Chat Interface  | http://localhost:8501        |
 
 ---
 
-## 🐳 Running with Docker
+## Running with Docker
 
-The easiest way to run the full stack locally is with Docker Compose. This starts both the API and the Frontend, and mounts the data/chroma directories for persistence.
+Docker Compose starts both the API and the frontend, mounting the data and chroma directories for persistence.
 
 ```bash
-# Make sure your .env file exists with the GOOGLE_API_KEY
+# Ensure your .env file exists with the GOOGLE_API_KEY set
 docker-compose up --build
 ```
 
-- **Frontend:** [http://localhost:8501](http://localhost:8501)
-- **API Backend:** [http://localhost:8080/docs](http://localhost:8080/docs)
+| Service   | URL                                       |
+|-----------|-------------------------------------------|
+| Frontend  | [http://localhost:8501](http://localhost:8501)   |
+| API Docs  | [http://localhost:8080/docs](http://localhost:8080/docs) |
+
+> **Note:** Docker copies the source code into the image at build time. If you modify Python files, you need to rebuild with `docker-compose up --build`. For rapid iteration during development, running the backend and frontend natively (see above) is recommended.
 
 ---
 
-## ☁️ Google Cloud Run Deployment
+## Google Cloud Run Deployment
 
-This project is optimized for deployment on **Google Cloud Run** as a scalable, serverless container.
+This project is optimized for deployment on Google Cloud Run as a scalable, serverless container.
 
 ### Prerequisites
-1. Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+
+1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
 2. Authenticate: `gcloud auth login`
 3. Set your project: `gcloud config set project YOUR_PROJECT_ID`
-4. Ensure Secret Manager and Cloud Build APIs are enabled.
+4. Enable Secret Manager and Cloud Build APIs in your GCP console.
 
-### 1-Click Deployment
-You can deploy the full architecture to Cloud Run using the included deployment scripts:
+### Deploy
+
+Use the included deployment scripts:
 
 **Windows (PowerShell):**
+
 ```powershell
 .\deploy_gcp.ps1
 ```
 
 **Linux / macOS:**
+
 ```bash
 chmod +x deploy_gcp.sh
 ./deploy_gcp.sh
 ```
 
-These scripts will:
+The scripts will:
+
 1. Build the multi-stage Docker image via Google Cloud Build.
 2. Push it to Artifact Registry.
 3. Deploy a stateless Cloud Run service using the `$PORT` environment variable.
-4. Pass the required LLM environment settings.
+4. Pass the required LLM and embedding model settings.
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```text
 amy-team-chatbot/
-├── data/                  # Source documents (Markdown, PDFs, etc.)
-│   └── samples/           # Demo files (Valorant rules, patch notes)
-├── chroma_db/             # Local vector database storage (ignored in git)
-├── frontend/
-│   └── app.py             # Streamlit chat interface
-├── scripts/
-│   └── ingest.py          # Document embedding pipeline
-├── src/
-│   ├── config.py          # Pydantic settings & env management
-│   ├── engine.py          # LlamaIndex RAG query engine setup
-│   ├── main.py            # FastAPI application
-│   └── models.py          # Pydantic schemas for API validation
-├── .env.example           # Environment variables template
-├── docker-compose.yml     # Local multi-container setup
-├── Dockerfile             # Multi-stage build for Cloud Run
-├── requirements.txt       # Production dependencies
-└── requirements-dev.txt   # Dev dependencies (ruff, testing)
+|-- data/                      Source documents (Markdown, PDFs, etc.)
+|   +-- samples/               Demo files (Valorant rules, patch notes)
+|-- chroma_db/                 Local vector database storage (git-ignored)
+|-- frontend/
+|   +-- app.py                 Streamlit chat interface
+|-- scripts/
+|   +-- ingest.py              Document embedding and ingestion pipeline
+|-- src/
+|   |-- __init__.py            Package metadata and version
+|   |-- config.py              Pydantic settings and environment management
+|   |-- engine.py              Hybrid RAG engine (ChromaDB + Google Search)
+|   |-- main.py                FastAPI application and endpoint definitions
+|   +-- models.py              Pydantic schemas for API request/response validation
+|-- .env.example               Environment variables template
+|-- .streamlit/config.toml     Streamlit theme and client configuration
+|-- docker-compose.yml         Local multi-container setup
+|-- Dockerfile                 Multi-stage build optimized for Cloud Run
+|-- requirements.txt           Production dependencies
++-- requirements-dev.txt       Development dependencies (ruff, testing)
 ```
 
 ---
 
-## ✨ Code Quality & Conventions
+## Code Quality
 
-This project follows Google-level engineering standards:
-- **Linting & Formatting:** Enforced using `ruff`.
-- **Git History:** Strict adherence to [Conventional Commits](https://www.conventionalcommits.org/).
-- **Typing:** Strict Python type hints (`mypy` compatible) and Pydantic validation.
+This project enforces strict engineering standards:
 
-To run the linter:
+- **Linting and Formatting** -- Enforced using [Ruff](https://docs.astral.sh/ruff/).
+- **Git History** -- Follows [Conventional Commits](https://www.conventionalcommits.org/).
+- **Type Safety** -- Strict Python type hints and Pydantic validation on all boundaries.
+
+To run the linter and formatter:
+
 ```bash
 ruff check src/ scripts/ frontend/
 ruff format src/ scripts/ frontend/
