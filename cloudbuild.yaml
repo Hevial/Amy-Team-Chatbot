@@ -1,26 +1,60 @@
 steps:
-  # Build the container image
+  # ==============================================================================
+  # STEP 1: Build the unified container image using the multi-stage Dockerfile
+  # ==============================================================================
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'europe-west1-docker.pkg.dev/$PROJECT_ID/amnesia-repo/amy-chatbot:$COMMIT_SHA', '.']
+    id: 'build-unified-image'
+    args: 
+      - 'build'
+      - '-t'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$COMMIT_SHA'
+      - '-t'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest'
+      - '.'
     
-  # Push the container image to Artifact Registry
+  # ==============================================================================
+  # STEP 2: Push the image to Google Artifact Registry
+  # ==============================================================================
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/amnesia-repo/amy-chatbot:$COMMIT_SHA']
+    id: 'push-image'
+    args: 
+      - 'push'
+      - '--all-tags'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME'
     
-  # Deploy to Cloud Run
+  # ==============================================================================
+  # STEP 3: Deploy the image to Google Cloud Run
+  # ==============================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-to-cloud-run'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'amy-chatbot'
+      - '$_SERVICE_NAME'
       - '--image'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/amnesia-repo/amy-chatbot:$COMMIT_SHA'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$COMMIT_SHA'
       - '--region'
-      - 'europe-west1'
+      - '$_REGION'
+      - '--platform'
+      - 'managed'
       - '--allow-unauthenticated'
-      # Assuming Secret Manager is used for GOOGLE_API_KEY
-      - '--set-secrets=GOOGLE_API_KEY=google_api_key:latest'
+      # Inject necessary environment variables for the RAG engine
+      - '--set-env-vars=ENABLE_GOOGLE_SEARCH=true'
+      # Securely map the Google API Key from Google Secret Manager
+      - '--update-secrets=GOOGLE_API_KEY=google_api_key:latest'
 
+# ==============================================================================
+# Tell Cloud Build which images it produced so it tracks them in the UI
+# ==============================================================================
 images:
-  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/amnesia-repo/amy-chatbot:$COMMIT_SHA'
+  - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$COMMIT_SHA'
+  - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest'
+
+# ==============================================================================
+# Default variables (can be overridden in the Cloud Build Trigger UI)
+# ==============================================================================
+substitutions:
+  _ARTIFACT_REGISTRY_REPO: 'amnesia-repo'
+  _SERVICE_NAME: 'amy-chatbot'
+  _REGION: 'europe-west1'
