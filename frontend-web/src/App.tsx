@@ -256,10 +256,10 @@ export function App() {
             />
             <div className="flex items-center justify-between px-2 pb-1">
               <div className="flex items-center gap-1 text-muted-foreground pl-1">
-                <Button 
+                <Button
                   type="button"
-                  variant={enableGoogleSearch ? "outline" : "ghost"} 
-                  size="sm" 
+                  variant={enableGoogleSearch ? "outline" : "ghost"}
+                  size="sm"
                   onClick={() => setEnableGoogleSearch(!enableGoogleSearch)}
                   className={`rounded-full gap-2 text-[13px] h-8 px-3 transition-all ${enableGoogleSearch
                     ? 'border-chart-3/40 bg-chart-3/10 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3'
@@ -269,10 +269,10 @@ export function App() {
                   <Globe className="size-4" />
                   Web Search
                 </Button>
-                <Button 
+                <Button
                   type="button"
-                  variant={enableDeepSearch ? "outline" : "ghost"} 
-                  size="sm" 
+                  variant={enableDeepSearch ? "outline" : "ghost"}
+                  size="sm"
                   onClick={() => setEnableDeepSearch(!enableDeepSearch)}
                   className={`rounded-full gap-2 text-[13px] h-8 px-3 transition-all ${enableDeepSearch
                     ? 'border-chart-3/40 bg-chart-3/10 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3'
