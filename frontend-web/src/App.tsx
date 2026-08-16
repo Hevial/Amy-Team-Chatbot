@@ -1,5 +1,9 @@
 import * as React from "react"
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from "remark-gfm"
+import remarkMath from "remark-math"
+import rehypeKatex from "rehype-katex"
+import "katex/dist/katex.min.css"
 import { askQuestion, type QueryResponse } from "./lib/api"
 import {
   MessageScrollerProvider,
@@ -13,7 +17,7 @@ import { Message, MessageContent, MessageGroup } from "./components/ui/message"
 import { Bubble, BubbleContent } from "./components/ui/bubble"
 import { Textarea } from "./components/ui/textarea"
 import { Button } from "./components/ui/button"
-import { SendHorizontal, Sparkles, FileText, Lightbulb } from "lucide-react"
+import { SendHorizontal, Sparkles, FileText, Lightbulb, Moon, Sun, Plus, Globe, Brain } from "lucide-react"
 import { AmyLogo } from "./components/AmyLogo"
 
 type ChatMessage = {
@@ -34,11 +38,30 @@ export function App() {
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = React.useState("")
   const [isPending, setIsPending] = React.useState(false)
+  const [theme, setTheme] = React.useState<"light" | "dark">("dark")
+  const [enableGoogleSearch, setEnableGoogleSearch] = React.useState(false)
+  const [enableDeepSearch, setEnableDeepSearch] = React.useState(false)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }, [theme])
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages])
+
+  const handleResetChat = () => {
+    setMessages([])
+  }
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === "dark" ? "light" : "dark")
+  }
 
   const handleSend = async (content: string) => {
     if (!content.trim() || isPending) return
@@ -60,7 +83,11 @@ export function App() {
         { id: typingId, role: "bot", content: "", isTyping: true },
       ])
 
-      const response = await askQuestion({ question: userMessage.content })
+      const response = await askQuestion({
+        question: content.trim(),
+        enable_google_search: enableGoogleSearch,
+        top_k: enableDeepSearch ? 15 : undefined
+      })
 
       setMessages((prev) =>
         prev.map((m) =>
@@ -84,7 +111,7 @@ export function App() {
     }
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = (e?: React.SyntheticEvent) => {
     e?.preventDefault()
     handleSend(inputValue)
   }
@@ -97,10 +124,42 @@ export function App() {
   }
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-background font-sans selection:bg-primary/20">
-      <main className="flex min-h-0 flex-1 flex-col items-center">
+    <div className="flex h-dvh w-full flex-col bg-background font-sans selection:bg-primary/20 relative">
+      {messages.length > 0 && (
+        <header className="absolute top-6 left-8 flex items-center gap-2.5 pointer-events-none z-50 animate-in fade-in duration-500">
+          <AmyLogo className="size-8 text-chart-4" />
+        </header>
+      )}
+
+      <div className="absolute top-6 right-8 z-50 flex items-center gap-2 animate-in fade-in duration-500">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="rounded-full text-muted-foreground hover:text-foreground transition-all"
+          title="Toggle Theme"
+        >
+          {theme === "dark" ? (
+            <Sun className="size-5 animate-in zoom-in-50 spin-in-90 duration-300" />
+          ) : (
+            <Moon className="size-5 animate-in zoom-in-50 -spin-in-90 duration-300" />
+          )}
+        </Button>
+        <Button
+          variant="default"
+          onClick={handleResetChat}
+          className="rounded-full shadow-sm gap-1.5 px-4 h-10 font-medium"
+        >
+          <Plus className="size-4" />
+          New Chat
+        </Button>
+      </div>
+
+      <main className="flex min-h-0 flex-1 flex-col items-center w-full">
         {messages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center w-full max-w-3xl gap-8 px-4 animate-in fade-in zoom-in duration-500">
+          <div className="relative flex flex-1 flex-col items-center justify-center w-full max-w-3xl gap-8 px-4 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out pt-18">
+            <div className="pointer-events-none absolute bottom-1/3 left-1/2 -translate-x-1/2 w-full max-w-3xl h-64 bg-chart-3/20 blur-[125px] rounded-[100%]" />
+
             <div className="flex flex-col items-center gap-4 text-center">
               <AmyLogo className="size-16" />
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-linear-to-r from-primary via-chart-2 to-primary bg-clip-text text-transparent animate-gradient-text drop-shadow-sm pb-1">
@@ -113,14 +172,15 @@ export function App() {
 
             <div className="flex flex-wrap justify-center gap-3 w-full max-w-2xl mt-4">
               {SUGGESTIONS.map((s, i) => (
-                <button
+                <Button
                   key={i}
                   onClick={() => handleSend(s.text)}
-                  className="flex items-center gap-2 rounded-2xl border bg-card px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.98]"
+                  variant={"outline"}
+                  size="2xl"
                 >
                   {s.icon}
                   {s.text}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -128,7 +188,7 @@ export function App() {
           <MessageScrollerProvider>
             <MessageScroller className="w-full flex-1">
               <MessageScrollerViewport>
-                <MessageScrollerContent className="w-full max-w-3xl mx-auto px-4 py-8">
+                <MessageScrollerContent className="w-full max-w-3xl mx-auto px-4 pb-8 pt-20">
                   <MessageGroup>
                     {messages.map((message) => (
                       <MessageScrollerItem key={message.id}>
@@ -149,7 +209,12 @@ export function App() {
                               <Bubble variant="ghost" className="w-full max-w-full">
                                 <BubbleContent className="w-full max-w-full">
                                   <div className="prose prose-sm md:prose-base dark:prose-invert prose-p:leading-relaxed prose-pre:p-0 max-w-none text-foreground w-full">
-                                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                                    <ReactMarkdown
+                                      remarkPlugins={[remarkGfm, remarkMath]}
+                                      rehypePlugins={[rehypeKatex]}
+                                    >
+                                      {message.content}
+                                    </ReactMarkdown>
                                   </div>
                                   {message.sources && message.sources.length > 0 && (
                                     <div className="mt-4 flex flex-wrap gap-2">
@@ -190,8 +255,33 @@ export function App() {
               rows={1}
             />
             <div className="flex items-center justify-between px-2 pb-1">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                {/* Optional attachments/tools buttons can go here */}
+              <div className="flex items-center gap-1 text-muted-foreground pl-1">
+                <Button 
+                  type="button"
+                  variant={enableGoogleSearch ? "outline" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setEnableGoogleSearch(!enableGoogleSearch)}
+                  className={`rounded-full gap-2 text-[13px] h-8 px-3 transition-all ${enableGoogleSearch
+                    ? 'border-chart-3/40 bg-chart-3/10 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <Globe className="size-4" />
+                  Web Search
+                </Button>
+                <Button 
+                  type="button"
+                  variant={enableDeepSearch ? "outline" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setEnableDeepSearch(!enableDeepSearch)}
+                  className={`rounded-full gap-2 text-[13px] h-8 px-3 transition-all ${enableDeepSearch
+                    ? 'border-chart-3/40 bg-chart-3/10 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3'
+                    : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                >
+                  <Brain className="size-4" />
+                  Deep Search
+                </Button>
               </div>
               <Button
                 type="submit"
