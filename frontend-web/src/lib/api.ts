@@ -22,7 +22,9 @@ export interface QueryResponse {
 }
 
 export async function askQuestion(request: QueryRequest): Promise<QueryResponse> {
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080";
+  // Use relative path by default so it works seamlessly in production (Cloud Run)
+  // when served by FastAPI on the same domain.
+  const apiUrl = import.meta.env.VITE_API_URL || "";
   
   const response = await fetch(`${apiUrl}/query`, {
     method: "POST",
