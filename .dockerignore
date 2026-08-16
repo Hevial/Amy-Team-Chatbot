@@ -26,4 +26,4 @@ ENV/
 
 # We exclude the local persistent database to avoid copying heavy files.
 # The container will create its own or mount a volume.
-chroma_db/
+# chroma_db/  <-- Commented out to allow DB packaging for Cloud Run MVP

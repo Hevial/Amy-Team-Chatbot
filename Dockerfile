@@ -42,6 +42,11 @@ COPY --from=backend-builder /install /usr/local
 # Copy backend application source code
 COPY src/ ./src/
 COPY data/ ./data/
+COPY scripts/ ./scripts/
+
+# Generate ChromaDB Vector Database during build
+ARG GOOGLE_API_KEY
+RUN GOOGLE_API_KEY=${GOOGLE_API_KEY} python -m scripts.ingest
 
 # Copy the compiled React static files
 COPY --from=frontend-builder /app/dist ./frontend-web/dist
