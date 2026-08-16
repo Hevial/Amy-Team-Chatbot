@@ -1,13 +1,13 @@
 services:
   # -----------------------------------------------------
-  # FastAPI Backend (The RAG Engine)
+  # Unified API + Frontend (Cloud Native Architecture)
   # -----------------------------------------------------
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    image: amy-chatbot-api
-    container_name: amy_api
+    image: amy-chatbot-unified
+    container_name: amy_unified
     ports:
       - "8080:8080"
     env_file:
@@ -15,7 +15,7 @@ services:
     volumes:
       # Mount ChromaDB storage to persist index between container restarts
       - ./chroma_db:/app/chroma_db
-      # Mount data directory for live updates (optional for local dev)
+      # Mount data directory for live updates
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
@@ -23,25 +23,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # -----------------------------------------------------
-  # Streamlit Frontend (The Chat UI)
-  # -----------------------------------------------------
-  frontend:
-    image: python:3.11-slim
-    container_name: amy_frontend
-    working_dir: /app
-    volumes:
-      - ./frontend:/app/frontend
-      - ./requirements.txt:/app/requirements.txt
-    environment:
-      # Tell the frontend how to reach the API container internally
-      - API_HOST=http://api:8080
-    ports:
-      - "8501:8501"
-    command: >
-      bash -c "pip install --no-cache-dir -r requirements.txt && 
-               streamlit run frontend/app.py --server.port=8501 --server.address=0.0.0.0"
-    depends_on:
-      - api
-    restart: unless-stopped

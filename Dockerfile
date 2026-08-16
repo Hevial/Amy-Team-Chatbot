@@ -1,8 +1,22 @@
-# Stage 1: Builder
-# We use a builder stage to compile C-extensions (like hnswlib for ChromaDB)
-# and install dependencies cleanly without bringing build tools into the final image.
-FROM python:3.11-slim AS builder
+# ==============================================================================
+# Stage 1: Frontend Builder (React/Vite)
+# ==============================================================================
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app
 
+# Install dependencies first for better layer caching
+COPY frontend-web/package.json frontend-web/package-lock.json* ./
+RUN npm install
+
+# Copy source and build
+COPY frontend-web/ ./
+RUN npm run build
+
+
+# ==============================================================================
+# Stage 2: Backend Builder (Python)
+# ==============================================================================
+FROM python:3.11-slim AS backend-builder
 WORKDIR /app
 
 # Install build dependencies required by ChromaDB and others
@@ -16,21 +30,23 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
-# Stage 2: Runtime
-# This is the final, minimal image that gets deployed to Cloud Run
+# ==============================================================================
+# Stage 3: Final Runtime Image (Unified Container for Cloud Run)
+# ==============================================================================
 FROM python:3.11-slim
-
 WORKDIR /app
 
-# Copy the compiled dependencies from the builder stage
-COPY --from=builder /install /usr/local
+# Copy the compiled python dependencies
+COPY --from=backend-builder /install /usr/local
 
-# Copy application source code
+# Copy backend application source code
 COPY src/ ./src/
-COPY frontend/ ./frontend/
 COPY data/ ./data/
 
-# Create a non-root user for security
+# Copy the compiled React static files
+COPY --from=frontend-builder /app/dist ./frontend-web/dist
+
+# Create a non-root user for security (Standard for GCP Cloud Run)
 RUN useradd -m -r appuser && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app
@@ -45,5 +61,5 @@ ENV PORT=8080
 # Expose the port for Cloud Run / Docker Compose
 EXPOSE 8080
 
-# Start the FastAPI application via Uvicorn, using the PORT environment variable
+# Start the FastAPI application via Uvicorn (serves API + React static files)
 CMD sh -c "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8080}"
