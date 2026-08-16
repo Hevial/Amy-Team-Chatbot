@@ -1,7 +1,7 @@
 # ==============================================================================
 # Stage 1: Frontend Builder (React/Vite)
 # ==============================================================================
-FROM node:18-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /app
 
 # Install dependencies first for better layer caching
