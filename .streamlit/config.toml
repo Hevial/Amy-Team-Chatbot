@@ -1,6 +1,16 @@
 [theme]
+base = "dark"
 primaryColor = "#8B5CF6"
-backgroundColor = "#131320"
-secondaryBackgroundColor = "#1C1C36"
-textColor = "#E8E8F0"
-font = "sans serif"
+backgroundColor = "#0E0E1A"
+secondaryBackgroundColor = "#18182E"
+textColor = "#E6E8F5"
+borderColor = "#2B2B48"
+showWidgetBorder = true
+baseRadius = "12px"
+buttonRadius = "12px"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+codeFont = "'JetBrains Mono':https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = true

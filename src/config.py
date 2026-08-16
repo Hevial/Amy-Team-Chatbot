@@ -48,9 +48,9 @@ class Settings(BaseSettings):
     # groq_api_key is removed
 
     # ---- Models & Capabilities ----
-    llm_model: str = Field(default="gemini-2.0-flash", alias="LLM_MODEL")
+    llm_model: str = Field(default="gemini-3.5-flash-lite", alias="LLM_MODEL")
     embedding_model: str = Field(default="gemini-embedding-2", alias="EMBEDDING_MODEL")
-    enable_google_search: bool = Field(default=True, alias="ENABLE_GOOGLE_SEARCH")
+    enable_google_search: bool = Field(default=False, alias="ENABLE_GOOGLE_SEARCH")
 
     # ---- Google Cloud Platform Settings ----
     google_cloud_project: str | None = Field(default=None, alias="GOOGLE_CLOUD_PROJECT")

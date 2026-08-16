@@ -16,7 +16,7 @@ class QueryRequest(BaseModel):
     question: str = Field(
         ...,
         description="The question to ask the Assistant Coach.",
-        example="What is the disconnection rule for Valorant tournaments?",
+        examples=["What is the disconnection rule for Valorant tournaments?"],
     )
     top_k: int | None = Field(
         default=None,
@@ -24,9 +24,9 @@ class QueryRequest(BaseModel):
         ge=1,
         le=20,
     )
-    enable_google_search: bool = Field(
-        default=True,
-        description="Whether to use Google Search Grounding for live web info.",
+    enable_google_search: bool | None = Field(
+        default=None,
+        description="Whether to use Google Search Grounding for live web info. If omitted, the server default from ENABLE_GOOGLE_SEARCH is used.",
     )
 
 

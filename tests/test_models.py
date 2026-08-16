@@ -6,7 +6,10 @@ def test_query_request_validation():
     req = QueryRequest(question="What is the rule?", top_k=3)
     assert req.question == "What is the rule?"
     assert req.top_k == 3
-    assert req.enable_google_search is True
+    assert req.enable_google_search is None
+
+    req_with_search = QueryRequest(question="What is the rule?", top_k=3, enable_google_search=True)
+    assert req_with_search.enable_google_search is True
 
 
 def test_source_node_document():

@@ -123,11 +123,18 @@ async def query_assistant(request: QueryRequest):
         if request.top_k and request.top_k != settings.similarity_top_k:
             query_engine.update_prompts({"similarity_top_k": request.top_k})
 
+        # Resolve Google Search: explicit request value takes priority, otherwise use server default
+        resolved_google_search = (
+            request.enable_google_search
+            if request.enable_google_search is not None
+            else settings.enable_google_search
+        )
+
         # Execute the Hybrid RAG query
         logger.info("Executing hybrid query: '%s'", request.question)
         answer, internal_nodes, web_nodes = query_engine.query(
             question=request.question,
-            enable_google_search=request.enable_google_search,
+            enable_google_search=resolved_google_search,
             top_k=request.top_k,
         )
 
@@ -172,8 +179,14 @@ async def query_assistant(request: QueryRequest):
         )
 
     except Exception as e:
-        logger.exception("Error processing query.")
+        logger.exception("Error processing query for question: '%s'", request.question)
+        err_msg = str(e)
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit or quota exceeded with the AI provider.",
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred while generating the response: {e!s}",
-        )
+            detail="An error occurred while generating the response.",
+        ) from e

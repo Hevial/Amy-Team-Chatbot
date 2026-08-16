@@ -1,603 +1,405 @@
 """
 Streamlit Frontend for Amy Team Chatbot.
 
-Provides a Gemini-inspired chat interface for users to interact with the
-RAG Assistant Coach. Connects to the FastAPI backend for answers and citations.
-
-Design: Dark mode, Inter font, subtle purple accents (Amnesia Esports),
-rounded shapes, clean layout inspired by Google Gemini.
-
-Messages are rendered as custom HTML to allow proper right-alignment for
-user messages and modern SVG-based avatars — something Streamlit's native
-st.chat_message does not support well.
+Provides a modern, high-end AI chat interface for Amnesia Esports team members
+to interact with the RAG Assistant Coach.
 """
 
+import base64
 import os
 from urllib.parse import urljoin
 
 import requests
 import streamlit as st
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Configuration
-# ---------------------------------------------------------------------------
+# =============================================================================
+
 API_HOST = os.getenv("API_HOST", "http://localhost:8080")
 QUERY_ENDPOINT = urljoin(API_HOST, "/query")
 
-# Inline SVG icons for chips (16x16, stroke-based, no emoji)
-ICON_BOLT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'
-ICON_CLIPBOARD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/></svg>'
-ICON_TROPHY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 1012 0V2z"/></svg>'
-ICON_TARGET = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>'
-ICON_FILE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
-
-SUGGESTION_CHIPS = [
-    {"icon": ICON_BOLT, "label": "Disconnection rules", "query": "What is the disconnection rule?"},
-    {
-        "icon": ICON_CLIPBOARD,
-        "label": "Latest patch notes",
-        "query": "Summarize the latest patch notes",
-    },
-    {
-        "icon": ICON_TROPHY,
-        "label": "Tournament format",
-        "query": "What are the tournament format rules?",
-    },
-    {
-        "icon": ICON_TARGET,
-        "label": "Team strategy tips",
-        "query": "What strategic advice can you give based on the current meta?",
-    },
-]
-
-# SVG avatars — inline so no external dependencies
-AVATAR_AMY = """<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="32" height="32" rx="10" fill="#8B5CF6"/>
-<text x="16" y="21" text-anchor="middle" fill="white" font-family="Inter,sans-serif" font-size="14" font-weight="600">A</text>
+# SVG Avatars for brand fidelity
+SVG_AMY = """<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="36" height="36" rx="10" fill="url(#amy_grad)"/>
+<path d="M18 9L20.2 15.8L27 18L20.2 20.2L18 27L15.8 20.2L9 18L15.8 15.8L18 9Z" fill="white"/>
+<defs>
+<linearGradient id="amy_grad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8B5CF6"/>
+<stop offset="1" stop-color="#6366F1"/>
+</linearGradient>
+</defs>
 </svg>"""
 
-AVATAR_USER = """<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="32" height="32" rx="10" fill="#3B3B5C"/>
-<circle cx="16" cy="13" r="5" stroke="white" stroke-width="1.5" fill="none"/>
-<path d="M8 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+SVG_USER = """<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="36" height="36" rx="10" fill="#252440"/>
+<circle cx="18" cy="14" r="5" stroke="#A78BFA" stroke-width="1.8" fill="none"/>
+<path d="M10 27c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#A78BFA" stroke-width="1.8" fill="none" stroke-linecap="round"/>
 </svg>"""
 
+
+def get_svg_data_url(svg_str: str) -> str:
+    b64 = base64.b64encode(svg_str.encode("utf-8")).decode("utf-8")
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+AVATAR_AMY = get_svg_data_url(SVG_AMY)
+AVATAR_USER = get_svg_data_url(SVG_USER) + "#user"
+
+# =============================================================================
+# Page Setup
+# =============================================================================
 
 st.set_page_config(
     page_title="Amy — Assistant Coach",
-    page_icon="A",
+    page_icon=":material/smart_toy:",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
+# =============================================================================
+# Design System & Styling (Dark Modern Cinematic Esports / AI Theme)
+# =============================================================================
 
-# ---------------------------------------------------------------------------
-# Design System — CSS
-# ---------------------------------------------------------------------------
 st.markdown(
     """
-<style>
-    /* ── Fonts ─────────────────────────────────────────────────────────── */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    *, html, body, [class*="css"], .stMarkdown,
-    [data-testid="stChatInput"] textarea,
-    p, span, div, h1, h2, h3, label, button {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    }
+        /* ---------- Global Core ---------- */
+        html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            background-color: #0E0E1A !important;
+            color: #E6E8F5 !important;
+        }
 
-    /* ── Force Uniform Dark Background ────────────────────────────────── */
-    .stApp,
-    .stApp > div,
-    .stApp [data-testid="stAppViewContainer"],
-    .stApp [data-testid="stAppViewBlockContainer"],
-    [data-testid="stMain"],
-    [data-testid="stMainBlockContainer"],
-    [data-testid="stVerticalBlock"],
-    section[data-testid="stMain"],
-    .block-container,
-    .main .block-container {
-        background-color: #131320 !important;
-    }
+        /* Hide unwanted Streamlit UI elements */
+        #MainMenu, [data-testid="stAppDeployButton"], footer, [data-testid="stToolbarActions"], [data-testid="collapsedControl"] {
+            display: none !important;
+        }
 
-    /* Nuke any white/light backgrounds */
-    .stApp [data-testid="stBottom"],
-    .stApp [data-testid="stBottom"] > div {
-        background-color: #131320 !important;
-    }
+        /* Center main container */
+        .block-container {
+            max-width: 760px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            padding-top: 1.25rem !important;
+            padding-bottom: 7rem !important;
+        }
 
-    /* Hide Streamlit chrome */
-    #MainMenu, footer, header, [data-testid="stToolbar"],
-    [data-testid="stDecoration"], [data-testid="stStatusWidget"] {
-        visibility: hidden !important;
-        height: 0 !important;
-        position: fixed !important;
-    }
+        /* ---------- Top Bar & Header ---------- */
+        .brand-box {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
 
-    /* ── Sidebar ──────────────────────────────────────────────────────── */
-    [data-testid="stSidebar"],
-    [data-testid="stSidebar"] > div {
-        background-color: #16162B !important;
-        border-right: 1px solid rgba(139, 92, 246, 0.06) !important;
-    }
+        .brand-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+            box-shadow: 0 0 16px rgba(139, 92, 246, 0.4);
+            color: #ffffff;
+        }
 
-    .sidebar-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #E8E8F0;
-        letter-spacing: -0.01em;
-    }
-    .sidebar-subtitle {
-        font-size: 0.8rem;
-        color: #6B6B90;
-        margin-top: 2px;
-    }
+        .brand-info {
+            display: flex;
+            flex-direction: column;
+        }
 
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] .stMarkdown p {
-        color: #9090A8 !important;
-        font-size: 0.85rem !important;
-    }
+        .brand-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #FFFFFF;
+            line-height: 1.2;
+        }
 
-    /* Sidebar button */
-    [data-testid="stSidebar"] .stButton > button {
-        background-color: rgba(139, 92, 246, 0.08) !important;
-        color: #B8A0F0 !important;
-        border: 1px solid rgba(139, 92, 246, 0.15) !important;
-        border-radius: 12px !important;
-        font-weight: 500 !important;
-        font-size: 0.85rem !important;
-        transition: all 0.2s ease !important;
-        padding: 0.5rem 1rem !important;
-    }
-    [data-testid="stSidebar"] .stButton > button:hover {
-        background-color: rgba(139, 92, 246, 0.18) !important;
-        border-color: rgba(139, 92, 246, 0.35) !important;
-        color: #D4C4F8 !important;
-    }
+        .brand-badge {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: #A78BFA;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
 
-    /* Sidebar slider track */
-    [data-testid="stSidebar"] .stSlider [data-baseweb="slider"] div[role="slider"] {
-        background-color: #8B5CF6 !important;
-    }
+        /* ---------- Popover (Settings) - Full Roundness ---------- */
+        [data-testid="stPopover"] > button {
+            border-radius: 9999px !important;
+        }
 
-    /* Sidebar divider */
-    [data-testid="stSidebar"] hr {
-        border-color: rgba(139, 92, 246, 0.08) !important;
-        margin: 1rem 0 !important;
-    }
+        /* ---------- Hero / Landing State (Centered) ---------- */
+        .hero-wrap {
+            text-align: center;
+            padding: 4rem 1rem 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
 
-    /* ── Chat Messages (custom HTML) ──────────────────────────────────── */
-    .chat-container {
-        max-width: 780px;
-        margin: 0 auto;
-        padding: 0 1rem 6rem 1rem;
-    }
+        .hero-sparkle {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
+            border: 1px solid rgba(139, 92, 246, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #C4B5FD;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.25);
+            margin-bottom: 1.25rem;
+            animation: floatGlow 4s ease-in-out infinite alternate;
+        }
 
-    .msg-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 1.5rem;
-        animation: msg-fade 0.15s ease-out;
-    }
-    @keyframes msg-fade {
-        from { opacity: 0; }
-        to   { opacity: 1; }
-    }
+        @keyframes floatGlow {
+            0% { transform: translateY(0px); box-shadow: 0 0 20px rgba(139, 92, 246, 0.25); }
+            100% { transform: translateY(-4px); box-shadow: 0 0 35px rgba(139, 92, 246, 0.45); }
+        }
 
-    /* User row — right aligned */
-    .msg-row.user {
-        flex-direction: row-reverse;
-    }
+        .hero-heading {
+            font-size: 2.3rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 50%, #A78BFA 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 0.5rem 0;
+            line-height: 1.2;
+            text-align: center;
+        }
 
-    /* Avatar */
-    .msg-avatar {
-        flex-shrink: 0;
-        width: 32px;
-        height: 32px;
-        margin-top: 2px;
-    }
+        .hero-subheading {
+            font-size: 0.98rem;
+            color: #94A3B8;
+            max-width: 520px;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
 
-    /* Bubble — Assistant */
-    .msg-bubble.assistant {
-        color: #D4D4E4;
-        font-size: 0.92rem;
-        line-height: 1.75;
-        padding: 4px 0;
-        max-width: 85%;
-    }
-    .msg-bubble.assistant strong { color: #E8E8F0; }
-    .msg-bubble.assistant code {
-        background: rgba(139, 92, 246, 0.1);
-        padding: 2px 6px;
-        border-radius: 12px;
-        font-size: 0.84rem;
-        color: #C4B5FD;
-    }
+        .suggestion-header {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #71717A;
+            margin-bottom: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+        }
 
-    /* Bubble — User */
-    .msg-bubble.user {
-        background: linear-gradient(135deg, #2A2650 0%, #252248 100%);
-        border: 1px solid rgba(139, 92, 246, 0.1);
-        border-radius: 20px 20px 20px 20px;
-        padding: 12px 18px;
-        color: #E0E0F0;
-        font-size: 0.92rem;
-        line-height: 1.6;
-        max-width: 75%;
-    }
+        /* ---------- Suggestion Pills / Buttons (Centered) ---------- */
+        div.stElementContainer:has([data-testid="stPills"]),
+        div[data-testid="stElementContainer"]:has([data-testid="stPills"]) {
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
+        }
 
-    /* ── Hide default st.chat_message styling ─────────────────────────── */
-    .stChatMessage {
-        background-color: transparent !important;
-        border: none !important;
-    }
+        div[data-testid="stPills"] {
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
+            margin: 0 auto 1.5rem auto !important;
+        }
 
-    /* ── Chat Input ───────────────────────────────────────────────────── */
-    [data-testid="stChatInput"] {
-        max-width: 780px !important;
-        margin: 0 auto !important;
-    }
-    [data-testid="stChatInput"] > div {
-        background-color: #1C1C36 !important;
-        border: 1px solid rgba(139, 92, 246, 0.16) !important;
-        border-radius: 24px !important;
-        padding: 4px 6px !important;
-        transition: border-color 0.2s ease !important;
-    }
-    [data-testid="stChatInput"] > div:focus-within {
-        border-color: rgba(139, 92, 246, 0.45) !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stChatInput"] textarea {
-        color: #E0E0F0 !important;
-        caret-color: #8B5CF6 !important;
-        font-size: 0.94rem !important;
-        line-height: 1.5 !important;
-        padding: 8px 12px !important;
-    }
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #55557A !important;
-    }
-    /* Send button */
-    [data-testid="stChatInput"] button {
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
-        border-radius: 50% !important;
-        margin: 0 4px 4px 0 !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        transition: all 0.2s ease !important;
-    }
-    [data-testid="stChatInput"] button[disabled] {
-        background-color: transparent !important;
-        background: transparent !important;
-        color: #55557A !important;
-        opacity: 0.4 !important;
-    }
-    [data-testid="stChatInput"] button[disabled] svg {
-        fill: #55557A !important;
-    }
-    [data-testid="stChatInput"] button:not([disabled]) {
-        background-color: #8B5CF6 !important;
-        background: #8B5CF6 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-    }
-    [data-testid="stChatInput"] button:not([disabled]) svg {
-        fill: #FFFFFF !important;
-        color: #FFFFFF !important;
-    }
-    [data-testid="stChatInput"] button:not([disabled]):hover {
-        background-color: #9D74F7 !important;
-        background: #9D74F7 !important;
-    }
+        div[data-testid="stPills"] div[role="radiogroup"],
+        div[data-testid="stPills"] div[role="group"],
+        div[data-testid="stPills"] > div,
+        div[data-testid="stPills"] > div > div {
+            display: flex !important;
+            justify-content: center !important;
+            flex-wrap: wrap !important;
+            width: 100% !important;
+            margin: 0 auto !important;
+        }
 
-    /* ── Bottom bar background fix ────────────────────────────────────── */
-    [data-testid="stBottom"] {
-        background: linear-gradient(to top, #131320 85%, transparent) !important;
-    }
+        div[data-testid="stPills"] button {
+            background-color: #16162C !important;
+            border: 1px solid rgba(139, 92, 246, 0.2) !important;
+            border-radius: 9999px !important;
+            color: #E2E8F0 !important;
+            font-size: 0.86rem !important;
+            padding: 8px 18px !important;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
 
-    /* ── Landing Hero ─────────────────────────────────────────────────── */
-    .amy-hero {
-        text-align: center;
-        padding: 8vh 2rem 0 2rem;
-        max-width: 580px;
-        margin: 0 auto 2.2rem auto;
-    }
-    .amy-hero-title {
-        font-size: 2.8rem;
-        font-weight: 600;
-        background: linear-gradient(135deg, #8B5CF6 0%, #C4B5FD 50%, #818CF8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        letter-spacing: -0.03em;
-        margin-bottom: 0.6rem;
-    }
-    .amy-hero-sub {
-        color: #8888A4;
-        font-size: 0.96rem;
-        font-weight: 400;
-        line-height: 1.65;
-    }
+        div[data-testid="stPills"] button:hover {
+            border-color: rgba(139, 92, 246, 0.6) !important;
+            background-color: #1F1F3D !important;
+            color: #FFFFFF !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.2) !important;
+        }
 
-    /* ── Main Area Suggestion Chips (Minimal & Clean) ─────────────────── */
-    [data-testid="stMain"] [data-testid="stHorizontalBlock"] {
-        justify-content: center !important;
-        align-items: center !important;
-        gap: 10px !important;
-        max-width: 780px !important;
-        margin: 0 auto !important;
-        flex-wrap: wrap !important;
-    }
-    [data-testid="stMain"] div[data-testid="column"] {
-        flex: 0 1 auto !important;
-        width: auto !important;
-        min-width: 0 !important;
-        padding: 0 !important;
-    }
-    [data-testid="stMain"] div[data-testid="stButton"] > button,
-    [data-testid="stMain"] button[data-testid="baseButton-secondary"],
-    [data-testid="stMainBlockContainer"] .stButton > button,
-    div[data-testid="column"] .stButton > button {
-        background-color: #131320 !important;
-        background: #131320 !important;
-        color: #8C8CA8 !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 9999px !important;
-        padding: 10px 20px !important;
-        font-size: 0.84rem !important;
-        font-weight: 400 !important;
-        text-align: center !important;
-        line-height: 1.3 !important;
-        white-space: nowrap !important;
-        height: auto !important;
-        width: auto !important;
-        min-width: 0 !important;
-        box-shadow: none !important;
-        transform: none !important;
-        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
-        cursor: pointer !important;
-    }
-    [data-testid="stMain"] div[data-testid="stButton"] > button:hover,
-    [data-testid="stMain"] button[data-testid="baseButton-secondary"]:hover,
-    [data-testid="stMainBlockContainer"] .stButton > button:hover,
-    div[data-testid="column"] .stButton > button:hover {
-        background-color: #1A1A30 !important;
-        background: #1A1A30 !important;
-        border-color: rgba(139, 92, 246, 0.35) !important;
-        color: #DDD6FE !important;
-        box-shadow: none !important;
-        transform: none !important;
-    }
-    [data-testid="stMain"] div[data-testid="stButton"] > button:active,
-    [data-testid="stMain"] div[data-testid="stButton"] > button:focus {
-        background-color: #1E1E38 !important;
-        border-color: rgba(139, 92, 246, 0.5) !important;
-        color: #FFFFFF !important;
-        box-shadow: none !important;
-        transform: none !important;
-    }
+        /* ---------- Chat Messages ---------- */
+        [data-testid="stChatMessage"] {
+            padding: 0.75rem 0.25rem !important;
+            background-color: transparent !important;
+            gap: 1rem !important;
+        }
 
-    /* ── Source Chips ──────────────────────────────────────────────────── */
-    .source-chip {
-        display: inline-block;
-        background-color: rgba(139, 92, 246, 0.06);
-        color: #A78BFA;
-        border: 1px solid rgba(139, 92, 246, 0.12);
-        border-radius: 8px;
-        padding: 3px 10px;
-        font-size: 0.73rem;
-        font-family: 'Inter', monospace;
-        margin-right: 6px;
-        margin-top: 10px;
-        letter-spacing: 0.01em;
-        text-decoration: none;
-    }
-    a.source-chip:hover {
-        background-color: rgba(139, 92, 246, 0.15);
-    }
+        /* User Message Container & Bubble */
+        [data-testid="stChatMessage"]:has(img[src*="#user"]) {
+            flex-direction: row-reverse !important;
+        }
 
-    /* ── Typing Indicator ─────────────────────────────────────────────── */
-    .typing-row {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 1.5rem;
-    }
-    .typing-dots {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        padding: 14px 0 14px 0;
-    }
-    .typing-dot {
-        width: 7px;
-        height: 7px;
-        background-color: #8B5CF6;
-        border-radius: 50%;
-        animation: dot-pulse 1.4s infinite ease-in-out;
-        opacity: 0.3;
-    }
-    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dot-pulse {
-        0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
-        40% { opacity: 1; transform: scale(1.1); }
-    }
+        [data-testid="stChatMessage"]:has(img[src*="#user"]) [data-testid="stChatMessageContent"] {
+            background: linear-gradient(135deg, #221F3D 0%, #1A1830 100%) !important;
+            border: 1px solid rgba(139, 92, 246, 0.25) !important;
+            border-radius: 18px 18px 4px 18px !important;
+            padding: 12px 18px !important;
+            color: #F1F1F8 !important;
+            max-width: 82% !important;
+            margin-left: auto !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+        }
 
-    /* ── Scrollbar ────────────────────────────────────────────────────── */
-    ::-webkit-scrollbar { width: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb {
-        background: rgba(139, 92, 246, 0.15);
-        border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(139, 92, 246, 0.3);
-    }
+        /* Assistant Message styling */
+        [data-testid="stChatMessage"]:not(:has(img[src*="#user"])) [data-testid="stChatMessageContent"] {
+            background: transparent !important;
+            padding: 4px 0 !important;
+            color: #E2E8F0 !important;
+            line-height: 1.65 !important;
+        }
 
-    /* ── Responsive ───────────────────────────────────────────────────── */
-    @media (max-width: 768px) {
-        .amy-hero { padding: 6vh 1rem 1rem 1rem; }
-        .amy-hero-title { font-size: 2rem; }
-        .msg-bubble.user { max-width: 88%; }
-        .chat-container { padding: 0 0.5rem 6rem 0.5rem; }
-    }
-</style>
-""",
+        /* Code snippets */
+        code {
+            font-family: 'JetBrains Mono', monospace !important;
+            background: #18182E !important;
+            border: 1px solid rgba(139, 92, 246, 0.2) !important;
+            border-radius: 6px !important;
+            padding: 0.15rem 0.4rem !important;
+            color: #C4B5FD !important;
+            font-size: 0.88em !important;
+        }
+
+        /* ---------- Source Citations ---------- */
+        .sources-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(139, 92, 246, 0.15);
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(139, 92, 246, 0.08);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 0.76rem;
+            font-weight: 500;
+            color: #C4B5FD;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        a.source-badge:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: rgba(139, 92, 246, 0.45);
+            color: #FFFFFF;
+            transform: translateY(-1px);
+        }
+
+        /* ---------- Bottom Bar & Chat Input Centering ---------- */
+        [data-testid="stBottom"] {
+            background-color: #0E0E1A !important;
+        }
+
+        [data-testid="stBottom"] > div {
+            background-color: transparent !important;
+            max-width: 760px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+
+        [data-testid="stChatInput"] {
+            max-width: 760px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+
+        [data-testid="stChatInput"] > div {
+            background-color: #151528 !important;
+            border: 1px solid rgba(139, 92, 246, 0.25) !important;
+            border-radius: 9999px !important;
+            padding: 4px 10px !important;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4) !important;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        }
+
+        [data-testid="stChatInput"] > div:focus-within {
+            border-color: rgba(139, 92, 246, 0.7) !important;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.25) !important;
+        }
+
+        [data-testid="stChatInput"] button {
+            border-radius: 50% !important;
+            transition: transform 0.15s ease !important;
+        }
+
+        [data-testid="stChatInput"] button:not([disabled]) {
+            background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%) !important;
+            color: #FFFFFF !important;
+        }
+
+        [data-testid="stChatInput"] button:not([disabled]):hover {
+            transform: scale(1.06) !important;
+        }
+
+        /* ---------- Mobile Adjustments ---------- */
+        @media (max-width: 768px) {
+            .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+            .hero-heading { font-size: 1.85rem !important; }
+            [data-testid="stChatMessage"]:has(img[src*="#user"]) [data-testid="stChatMessageContent"] { max-width: 90% !important; }
+        }
+    </style>
+    """,
     unsafe_allow_html=True,
 )
 
+# =============================================================================
+# Session State Initialization
+# =============================================================================
 
-# ---------------------------------------------------------------------------
-# Helper — render a single chat message as HTML
-# ---------------------------------------------------------------------------
-def render_message(role: str, content: str) -> str:
-    """Return HTML for a single chat message row."""
-    if role == "user":
-        avatar = AVATAR_USER
-        bubble_cls = "user"
-        row_cls = "user"
-    else:
-        avatar = AVATAR_AMY
-        bubble_cls = "assistant"
-        row_cls = "assistant"
-
-    return (
-        f'<div class="msg-row {row_cls}">'
-        f'  <div class="msg-avatar">{avatar}</div>'
-        f'  <div class="msg-bubble {bubble_cls}">{content}</div>'
-        f"</div>"
-    )
-
-
-def render_typing_indicator() -> str:
-    """Return HTML for the animated typing indicator."""
-    return (
-        f'<div class="typing-row">'
-        f'  <div class="msg-avatar">{AVATAR_AMY}</div>'
-        f'  <div class="typing-dots">'
-        f'    <div class="typing-dot"></div>'
-        f'    <div class="typing-dot"></div>'
-        f'    <div class="typing-dot"></div>'
-        f"  </div>"
-        f"</div>"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown(
-        '<div class="sidebar-title">✦ Amy</div>'
-        '<div class="sidebar-subtitle">Assistant Coach · Amnesia Esports</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.divider()
-
-    top_k = st.slider(
-        "Context Depth",
-        min_value=1,
-        max_value=10,
-        value=5,
-        help="Number of document chunks to retrieve for each query.",
-    )
-
-    enable_google_search = st.toggle(
-        "Enable Google Search",
-        value=True,
-        help="Allow Amy to use Google Search Grounding for live web facts if needed.",
-    )
-
-    st.divider()
-
-    if st.button("New Chat", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-
-
-# ---------------------------------------------------------------------------
-# Initialize chat history
-# ---------------------------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "google_search" not in st.session_state:
+    st.session_state.google_search = False
 
-# ---------------------------------------------------------------------------
-# Landing State (no messages)
-# ---------------------------------------------------------------------------
-if not st.session_state.messages:
-    st.markdown(
-        """
-        <div class="amy-hero">
-            <div class="amy-hero-title">Hi, I'm Amy</div>
-            <div class="amy-hero-sub">
-                Your AI Assistant Coach for Amnesia Esports.<br>
-                Ask me about tournament rules, patch notes, and team strategy.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Suggestion chips — centered pill layout
-    cols = st.columns(len(SUGGESTION_CHIPS))
-    for i, chip in enumerate(SUGGESTION_CHIPS):
-        with cols[i]:
-            if st.button(chip["label"], key=f"chip_{i}"):
-                st.session_state["_pending_query"] = chip["query"]
-                st.rerun()
+if "chunk_count" not in st.session_state:
+    st.session_state.chunk_count = 5
 
 
-# ---------------------------------------------------------------------------
-# Chat History & Dynamic UI
-# ---------------------------------------------------------------------------
-chat_placeholder = st.empty()
+# =============================================================================
+# Backend Communication
+# =============================================================================
 
-
-def update_chat_display(show_typing: bool = False) -> None:
-    """Render the full chat conversation in the unified placeholder."""
-    if not st.session_state.messages and not show_typing:
-        chat_placeholder.empty()
-        return
-
-    html = '<div class="chat-container">'
-    for msg in st.session_state.messages:
-        html += render_message(msg["role"], msg["content"])
-    if show_typing:
-        html += render_typing_indicator()
-    html += "</div>"
-    chat_placeholder.markdown(html, unsafe_allow_html=True)
-
-
-# Render existing messages
-update_chat_display(show_typing=False)
-
-# ---------------------------------------------------------------------------
-# Process Query (from typed input OR suggestion chip)
-# ---------------------------------------------------------------------------
-pending = st.session_state.pop("_pending_query", None)
-user_input = st.chat_input("Ask Amy anything...")
-prompt = user_input or pending
-
-if prompt:
-    # 1. Append user message once
-    st.session_state.messages.append({"role": "user", "content": prompt})
-
-    # 2. Show conversation with typing indicator
-    update_chat_display(show_typing=True)
-
-    # 3. Fetch response from FastAPI backend
+def ask_assistant(
+    question: str,
+    *,
+    google_search: bool,
+    chunk_count: int,
+) -> str:
+    """Send query to the FastAPI RAG backend and format the response with citations."""
     try:
-        payload = {"question": prompt, "top_k": top_k, "enable_google_search": enable_google_search}
+        payload = {
+            "question": question,
+            "top_k": chunk_count,
+            "enable_google_search": google_search,
+        }
         response = requests.post(QUERY_ENDPOINT, json=payload, timeout=60)
         response.raise_for_status()
 
@@ -605,43 +407,185 @@ if prompt:
         answer = data.get("answer", "I couldn't generate an answer.")
         sources = data.get("sources", [])
 
-        full_response = answer
         if sources:
-            full_response += '<div style="margin-top: 10px;">'
             doc_files = set()
             web_links = set()
+            chips = []
 
             for s in sources:
                 stype = s.get("source_type")
                 if stype == "document":
-                    fname = s.get("file_name", "Unknown")
+                    fname = s.get("file_name", "Unknown Document")
                     if fname not in doc_files:
                         doc_files.add(fname)
-                        full_response += f'<span class="source-chip">📄 {fname}</span>'
+                        chips.append(
+                            f'<span class="source-badge">'
+                            f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> '
+                            f'{fname}</span>'
+                        )
                 elif stype == "web":
                     title = s.get("title", "Web Source")
                     url = s.get("url", "#")
                     if url not in web_links:
                         web_links.add(url)
-                        full_response += (
-                            f'<a href="{url}" target="_blank" class="source-chip">🌐 {title}</a>'
+                        chips.append(
+                            f'<a href="{url}" target="_blank" class="source-badge">'
+                            f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> '
+                            f'{title}</a>'
                         )
 
-            full_response += "</div>"
+            if chips:
+                answer += '\n\n<div class="sources-container">' + "".join(chips) + "</div>"
 
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        return answer
 
     except requests.exceptions.ConnectionError:
-        error_content = (
-            "<strong>Connection Error</strong> — "
-            "The API server is not reachable. "
-            "Make sure the FastAPI backend is running on port 8080."
+        return (
+            "**Connection Error**: Unable to reach the coaching server at `http://localhost:8080`.\n\n"
+            "Please ensure the backend service is running with:\n"
+            "```bash\npython -m src.main\n```"
         )
-        st.session_state.messages.append({"role": "assistant", "content": error_content})
-
     except requests.exceptions.HTTPError as e:
-        error_content = f"<strong>API Error</strong> — {e.response.text}"
-        st.session_state.messages.append({"role": "assistant", "content": error_content})
+        status_code = e.response.status_code if e.response is not None else 500
+        if status_code == 429:
+            return "**Rate Limit**: API quota limit reached. Please wait a moment or disable Google Search in settings."
+        if status_code == 503:
+            return "**Service Initializing**: The coaching engine is warming up. Please try again in a few seconds."
+        return "**Unexpected Error**: The server encountered an issue processing your query. Please try rephrasing."
+    except Exception as exc:
+        return f"**Error**: {type(exc).__name__}: {exc}"
 
-    # 4. Refresh display with the assistant's answer (typing indicator removed)
-    update_chat_display(show_typing=False)
+
+# =============================================================================
+# Header & Navigation Bar (Centered Layout)
+# =============================================================================
+
+header_col_left, header_col_right = st.columns([3, 1], vertical_alignment="center")
+
+with header_col_left:
+    st.markdown(
+        """
+        <div class="brand-box">
+            <div class="brand-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/>
+                </svg>
+            </div>
+            <div class="brand-info">
+                <span class="brand-title">Amy</span>
+                <span class="brand-badge">Amnesia Esports • AI Coach</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with header_col_right:
+    with st.popover(":material/tune: Settings"):
+        st.caption("ASSISTANT CAPABILITIES")
+        st.session_state.google_search = st.toggle(
+            "Google Search Grounding",
+            value=st.session_state.google_search,
+            help="Enable live web search for up-to-date tournament and patch updates.",
+        )
+        st.session_state.chunk_count = st.slider(
+            "Knowledge Retrieval Depth",
+            min_value=1,
+            max_value=10,
+            value=st.session_state.chunk_count,
+            help="Number of document chunks retrieved per question.",
+        )
+        st.divider()
+        if st.button(":material/delete: Clear Conversation", width="stretch"):
+            st.session_state.messages = []
+            st.rerun()
+
+
+# =============================================================================
+# Suggestion Prompts Definition (Material Icons, Zero Emojis)
+# =============================================================================
+
+SUGGESTIONS = {
+    ":material/gavel: Disconnection rules": "What is the disconnection rule for Valorant tournaments?",
+    ":material/description: Latest patch summary": "Summarize the key agent and weapon changes from the latest patch notes.",
+    ":material/emoji_events: Tournament format": "Explain the tournament format, map veto process, and overtime rules.",
+    ":material/psychology: Mental & match prep": "What strategic advice can you give for team communication under pressure?",
+}
+
+
+# =============================================================================
+# Helper: Process and Stream Response
+# =============================================================================
+
+def process_query(user_text: str):
+    """Adds the user query to state, renders the response immediately, and updates history."""
+    st.session_state.messages.append({"role": "user", "content": user_text})
+    with st.chat_message("user", avatar=AVATAR_USER):
+        st.markdown(user_text)
+
+    with st.chat_message("assistant", avatar=AVATAR_AMY):
+        with st.spinner("Amy is analyzing team documents..."):
+            answer = ask_assistant(
+                user_text,
+                google_search=st.session_state.google_search,
+                chunk_count=st.session_state.chunk_count,
+            )
+            st.markdown(answer, unsafe_allow_html=True)
+
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.rerun()
+
+
+# =============================================================================
+# Render Chat History
+# =============================================================================
+
+for msg in st.session_state.messages:
+    avatar = AVATAR_USER if msg["role"] == "user" else AVATAR_AMY
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"], unsafe_allow_html=True)
+
+
+# =============================================================================
+# Empty / Landing State (Hero + Action Pills)
+# =============================================================================
+
+if not st.session_state.messages:
+    st.markdown(
+        """
+        <div class="hero-wrap">
+            <div class="hero-sparkle">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/>
+                </svg>
+            </div>
+            <h1 class="hero-heading">Hi, I'm Amy</h1>
+            <div class="hero-subheading">
+                Your AI Assistant Coach for <b>Amnesia Esports</b>.<br>
+                Ask me about tournament rulebooks, tactical preparation, and patch updates.
+            </div>
+            <div class="suggestion-header">Suggested Prompts</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    selected_pill = st.pills(
+        "Suggested Prompts",
+        list(SUGGESTIONS.keys()),
+        label_visibility="collapsed",
+        key="hero_pills",
+    )
+    if selected_pill:
+        prompt_text = SUGGESTIONS[selected_pill]
+        process_query(prompt_text)
+
+
+# =============================================================================
+# Chat Input Bar (Native Bottom Docking & Centered)
+# =============================================================================
+
+if user_input := st.chat_input("Ask Amy about rules, strategy, or patches..."):
+    cleaned_input = user_input.strip()
+    if cleaned_input:
+        process_query(cleaned_input)

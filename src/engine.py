@@ -86,7 +86,7 @@ class HybridRAGEngine:
         self.ai_client = genai.Client(api_key=settings.google_api_key)
 
     def query(
-        self, question: str, enable_google_search: bool = True, top_k: int | None = None
+        self, question: str, enable_google_search: bool = False, top_k: int | None = None
     ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Executes a hybrid query combining local context and optional Google Search.
@@ -94,6 +94,7 @@ class HybridRAGEngine:
         Args:
             question: The user's prompt.
             enable_google_search: Whether to enable Google Search Grounding for this query.
+                Already resolved by the caller — this engine does not check settings.
             top_k: Optional override for the number of internal chunks to retrieve.
 
         Returns:
@@ -122,7 +123,7 @@ class HybridRAGEngine:
 
         # 2. Configure Google GenAI call
         tools = []
-        if enable_google_search and settings.enable_google_search:
+        if enable_google_search:
             tools.append(types.Tool(google_search=types.GoogleSearch()))
 
         config = types.GenerateContentConfig(
