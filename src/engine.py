@@ -15,7 +15,6 @@ from google.genai import types
 from llama_index.core import VectorStoreIndex
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.vector_stores.firestore import FirestoreVectorStore
 
 from src.config import settings
 
@@ -51,51 +50,32 @@ class HybridRAGEngine:
 
     def __init__(self):
         """Initializes the retriever and the Gemini AI client."""
+        chroma_db_path = Path(settings.chroma_db_dir)
+        if not chroma_db_path.exists():
+            raise FileNotFoundError(
+                f"ChromaDB directory not found at '{chroma_db_path}'. "
+                "Run 'python -m scripts.ingest' first to index your documents."
+            )
+
+        if not settings.google_api_key:
+            raise ValueError(
+                "GOOGLE_API_KEY is not set in .env. Please get an API key from Google AI Studio."
+            )
+
+        logger.info("Initializing ChromaDB connection...")
+        self.chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
+        self.collection = self.chroma_client.get_or_create_collection(settings.collection_name)
+
+        doc_count = self.collection.count()
+        if doc_count == 0:
+            logger.warning("ChromaDB collection is empty. Please run the ingest script.")
+
         logger.info("Configuring embedding model: Google GenAI (%s)", settings.embedding_model)
         self.embed_model = GoogleGenAIEmbedding(
             model_name=settings.embedding_model, api_key=settings.google_api_key
         )
 
-        if settings.vector_store_type.lower() == "firestore":
-            logger.info("Initializing Firestore connection...")
-            import google.auth
-            from google.cloud import firestore
-            
-            # Use provided project ID or fallback to Application Default Credentials
-            project_id = settings.firestore_project_id
-            if not project_id:
-                try:
-                    credentials, project_id = google.auth.default()
-                except Exception as e:
-                    logger.warning("Could not get default GCP project: %s", e)
-            
-            if not project_id:
-                raise ValueError("FIRESTORE_PROJECT_ID must be set when using firestore vector store.")
-                
-            logger.info("Connecting to Firestore in project '%s', database '%s'", project_id, settings.firestore_database_id)
-            db = firestore.Client(project=project_id, database=settings.firestore_database_id)
-            self.vector_store = FirestoreVectorStore(
-                collection_name=settings.collection_name,
-                db=db
-            )
-        else:
-            logger.info("Initializing ChromaDB connection...")
-            chroma_db_path = Path(settings.chroma_db_dir)
-            if not chroma_db_path.exists():
-                raise FileNotFoundError(
-                    f"ChromaDB directory not found at '{chroma_db_path}'. "
-                    "Run 'python -m scripts.ingest' first to index your documents."
-                )
-            
-            self.chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
-            self.collection = self.chroma_client.get_or_create_collection(settings.collection_name)
-            
-            doc_count = self.collection.count()
-            if doc_count == 0:
-                logger.warning("ChromaDB collection is empty. Please run the ingest script.")
-                
-            self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
-
+        self.vector_store = ChromaVectorStore(chroma_collection=self.collection)
         self.index = VectorStoreIndex.from_vector_store(
             vector_store=self.vector_store,
             embed_model=self.embed_model,
@@ -190,30 +170,14 @@ class HybridRAGEngine:
 
 
 def get_indexed_document_count() -> int:
-    """Return the number of indexed chunks in the active Vector Store."""
+    """Return the number of indexed chunks in the ChromaDB collection."""
     try:
-        if settings.vector_store_type.lower() == "firestore":
-            import google.auth
-            from google.cloud import firestore
-            
-            project_id = settings.firestore_project_id
-            if not project_id:
-                credentials, project_id = google.auth.default()
-                
-            if project_id:
-                db = firestore.Client(project=project_id, database=settings.firestore_database_id)
-                docs = db.collection(settings.collection_name).count().get()
-                # AggregateQuerySnapshot returns a list of results
-                if docs and len(docs) > 0:
-                    return docs[0][0].value
+        chroma_db_path = Path(settings.chroma_db_dir)
+        if not chroma_db_path.exists():
             return 0
-        else:
-            chroma_db_path = Path(settings.chroma_db_dir)
-            if not chroma_db_path.exists():
-                return 0
-            chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
-            collection = chroma_client.get_or_create_collection(settings.collection_name)
-            return collection.count()
+        chroma_client = chromadb.PersistentClient(path=str(chroma_db_path))
+        collection = chroma_client.get_or_create_collection(settings.collection_name)
+        return collection.count()
     except Exception:
-        logger.warning("Could not read active Vector Store collection count.", exc_info=True)
+        logger.warning("Could not read ChromaDB collection count.", exc_info=True)
         return 0
