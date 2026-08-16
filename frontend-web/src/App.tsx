@@ -125,35 +125,44 @@ export function App() {
 
   return (
     <div className="flex h-dvh w-full flex-col bg-background font-sans selection:bg-primary/20 relative">
-      {messages.length > 0 && (
-        <header className="absolute top-6 left-8 flex items-center gap-2.5 pointer-events-none z-50 animate-in fade-in duration-500">
-          <AmyLogo className="size-8 text-chart-4" />
-        </header>
-      )}
-
-      <div className="absolute top-6 right-8 z-50 flex items-center gap-2 animate-in fade-in duration-500">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleTheme}
-          className="rounded-full text-muted-foreground hover:text-foreground transition-all"
-          title="Toggle Theme"
-        >
-          {theme === "dark" ? (
-            <Sun className="size-5 animate-in zoom-in-50 spin-in-90 duration-300" />
-          ) : (
-            <Moon className="size-5 animate-in zoom-in-50 -spin-in-90 duration-300" />
+      <header
+        className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 md:px-8 md:py-6 transition-all duration-500 ${messages.length > 0
+          ? "bg-background/90 backdrop-blur-md border-b border-border/50 shadow-sm lg:bg-transparent lg:backdrop-blur-none lg:border-transparent lg:shadow-none"
+          : "bg-transparent"
+          }`}
+      >
+        <div className="flex items-center gap-2.5 pointer-events-none">
+          {messages.length > 0 && (
+            <div className="animate-in fade-in duration-500">
+              <AmyLogo className="size-8 text-chart-4" />
+            </div>
           )}
-        </Button>
-        <Button
-          variant="default"
-          onClick={handleResetChat}
-          className="rounded-full shadow-sm gap-1.5 px-4 h-10 font-medium"
-        >
-          <Plus className="size-4" />
-          New Chat
-        </Button>
-      </div>
+        </div>
+
+        <div className="flex items-center gap-2 animate-in fade-in duration-500">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="rounded-full text-muted-foreground hover:text-foreground transition-all"
+            title="Toggle Theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="size-5 animate-in zoom-in-50 spin-in-90 duration-300" />
+            ) : (
+              <Moon className="size-5 animate-in zoom-in-50 -spin-in-90 duration-300" />
+            )}
+          </Button>
+          <Button
+            variant="default"
+            onClick={handleResetChat}
+            className="rounded-full shadow-sm gap-1.5 px-4 h-10 font-medium"
+          >
+            <Plus className="size-4" />
+            <span>New Chat</span>
+          </Button>
+        </div>
+      </header>
 
       <main className="flex min-h-0 flex-1 flex-col items-center w-full">
         {messages.length === 0 ? (
