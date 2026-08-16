@@ -8,11 +8,13 @@ minimize latency on incoming requests.
 """
 
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src import __version__
 from src.config import settings
@@ -70,7 +72,6 @@ app.add_middleware(
 async def root():
     """Redirect root to Swagger UI documentation."""
     from fastapi.responses import RedirectResponse
-
     return RedirectResponse(url="/docs")
 
 
@@ -184,3 +185,11 @@ async def query_assistant(request: QueryRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while generating the response.",
         ) from e
+
+
+# Mount static files for the React frontend (must be at the bottom to avoid hijacking API routes)
+frontend_dist_path = os.path.join(os.path.dirname(__file__), "..", "frontend-web", "dist")
+if os.path.isdir(frontend_dist_path):
+    # Remove the root route if we are mounting static files on /
+    app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/"]
+    app.mount("/", StaticFiles(directory=frontend_dist_path, html=True), name="frontend")
