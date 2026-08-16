@@ -8,10 +8,6 @@ google-genai>=1.0.0
 llama-index-llms-google-genai>=0.4.0
 llama-index-embeddings-google-genai>=0.3.0
 
-# --- Secondary Resilience & Fallback Providers ---
-llama-index-llms-groq>=0.2.0
-llama-index-embeddings-huggingface>=0.3.0
-sentence-transformers>=3.0.0
 
 # --- RAG Core & Vector Storage ---
 llama-index-core>=0.12.0
@@ -26,8 +22,6 @@ httpx>=0.27.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
-# --- Frontend User Interface ---
-streamlit>=1.40.0
 
 # --- Configuration & Runtime Validation ---
 python-dotenv>=1.0.0
