@@ -8,24 +8,35 @@ steps:
     args: ['-c', 'docker pull $_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest || exit 0']
 
   # ==============================================================================
-  # STEP 1: Build the unified container image using the multi-stage Dockerfile
+  # STEP 1: Generate ChromaDB Vector Database
+  # ==============================================================================
+  - name: 'python:3.11-slim'
+    id: 'generate-vectordb'
+    entrypoint: 'bash'
+    secretEnv: ['GOOGLE_API_KEY']
+    args:
+      - '-c'
+      - |
+        pip install --no-cache-dir -r requirements.txt
+        python -m scripts.ingest
+  
+  # ==============================================================================
+  # STEP 2: Build the unified container image using the multi-stage Dockerfile
   # ==============================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-unified-image'
-    entrypoint: 'bash'
-    secretEnv: ['GOOGLE_API_KEY']
     args: 
-      - '-c'
-      - |
-        docker build \
-          -t $_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$COMMIT_SHA \
-          -t $_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest \
-          --cache-from $_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest \
-          --build-arg GOOGLE_API_KEY="$$GOOGLE_API_KEY" \
-          .
+      - 'build'
+      - '-t'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$COMMIT_SHA'
+      - '-t'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest'
+      - '--cache-from'
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest'
+      - '.'
     
   # ==============================================================================
-  # STEP 2: Push the image to Google Artifact Registry
+  # STEP 3: Push the image to Google Artifact Registry
   # ==============================================================================
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
@@ -35,7 +46,7 @@ steps:
       - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME'
     
   # ==============================================================================
-  # STEP 3: Deploy the image to Google Cloud Run
+  # STEP 4: Deploy the image to Google Cloud Run
   # ==============================================================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-to-cloud-run'
