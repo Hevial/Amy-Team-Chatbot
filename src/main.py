@@ -117,12 +117,6 @@ async def query_assistant(request: QueryRequest):
     start_time = time.perf_counter()
 
     try:
-        # If the user specified a custom top_k for this request, we update the engine temporarily.
-        # Note: In a highly concurrent prod app, we'd use a custom retriever per request instead of mutating the global engine.
-        # For this POC, mutating the engine is sufficient.
-        if request.top_k and request.top_k != settings.similarity_top_k:
-            query_engine.update_prompts({"similarity_top_k": request.top_k})
-
         # Resolve Google Search: explicit request value takes priority, otherwise use server default
         resolved_google_search = (
             request.enable_google_search
