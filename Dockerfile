@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install dependencies first for better layer caching
 COPY frontend-web/package.json frontend-web/package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 # Copy source and build
 COPY frontend-web/ ./
@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install python dependencies into a local directory
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install uv && uv pip install --system --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # ==============================================================================
